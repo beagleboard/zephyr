@@ -1,0 +1,10 @@
+# HM3301 particulate mater sensor configuration options
+
+# Copyright (c) 2021 Jason Kridner
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig HM3301
+	bool "HM3301 sensor"
+	depends on I2C
+	help
+	  Enable driver for HM3301 I2C-based particulate matter sensor.
