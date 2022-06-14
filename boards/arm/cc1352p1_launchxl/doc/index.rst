@@ -220,9 +220,9 @@ disable sleep state 2 while polling:
 
 .. code-block:: c
 
-    pm_constraint_set(PM_STATE_STANDBY);
+    pm_policy_state_lock_get(PM_STATE_STANDBY, PM_ALL_SUBSTATES);
     <code that calls uart_poll_in() and expects input at any point in time>
-    pm_constraint_release(PM_STATE_STANDBY);
+    pm_policy_state_lock_put(PM_STATE_STANDBY, PM_ALL_SUBSTATES);
 
 
 References
