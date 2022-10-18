@@ -1,0 +1,14 @@
+# Copyright (c) 2022 Stancu Florin
+# SPDX-License-Identifier: Apache-2.0
+
+description: TI CC1352P7 LaunchXL Board Antenna switch
+
+compatible: "ti,antenna-mux"
+
+include: [pinctrl-device.yaml, base.yaml]
+
+properties:
+  gpios:
+    type: phandle-array
+    required: true
+    description: Antenna mux control pins

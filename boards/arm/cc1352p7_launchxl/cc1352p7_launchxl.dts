@@ -6,13 +6,13 @@
 
 /dts-v1/;
 
-#include <ti/cc1352r.dtsi>
+#include <ti/cc1352r7.dtsi>
 #include "../cc1352r1_launchxl/boosterpack_connector.dtsi"
-#include "cc1352p1_launchxl-pinctrl.dtsi"
+#include "cc1352p7_launchxl-pinctrl.dtsi"
 
 / {
 	model = "TI CC1352P1 LaunchXL";
-	compatible = "ti,launchxl-cc1352p1";
+	compatible = "ti,launchxl-cc1352p7";
 
 	aliases {
 		led0 = &led0;

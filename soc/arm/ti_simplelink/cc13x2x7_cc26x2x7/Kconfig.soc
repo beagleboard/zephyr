@@ -13,10 +13,27 @@ config SOC_CC2652R7
 config SOC_CC1352R7
 	bool "CC1352R7"
 
+config SOC_CC2652P7
+	bool "CC2652P7"
+
+config SOC_CC1352P7
+	bool "CC1352P7"
+
 endchoice
 
 menu "Customer Configuration (CCFG)"
 depends on SOC_SERIES_CC13X2X7_CC26X2X7
+
+config CC13X2_CC26X2_BOOST_MODE
+	bool "Radio boost mode (VDDR_HH)"
+	help
+	  Enable the radio boost mode +14dBm (sets CCFG_FORCE_VDDR_HH to 1).
+
+config CC13X2_CC26X2_HAS_CUSTOM_RF_HWATTRS
+	bool "Board defines custom RFCC26XX hwAttrs structure"
+	help
+	  The board defines its own RFCC26XX_hwAttrs structure (e.g., for
+	  custom antenna switching callback).
 
 config CC13X2_CC26X2_BOOTLOADER_ENABLE
 	bool "ROM bootloader"

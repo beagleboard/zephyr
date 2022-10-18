@@ -1,0 +1,11 @@
+# TI CC1352P7 LaunchXL board
+
+# Copyright (c) 2022 Vaishnav Achath
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_CC1352P7_LAUNCHXL
+
+config BOARD
+	default "cc1352p7_launchxl"
+
+endif # BOARD_CC1352P7_LAUNCHXL
