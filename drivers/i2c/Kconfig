@@ -155,6 +155,11 @@ config I2C_NIOS2
 	help
 	  Enable the Nios-II I2C driver.
 
+config I2C_TS5A2066
+	bool "TS5A2066 switch for I2C driver"
+	help
+	  Enable GPIO controlled TS5A2066 switch driver.
+
 config I2C_RV32M1_LPI2C
 	bool "RV32M1 LPI2C driver"
 	default y
