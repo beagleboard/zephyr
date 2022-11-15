@@ -79,12 +79,6 @@
 	};
 
 	/* On-board antenna pinmux states */
-	board_ant_24g_off: board_ant_24g_off {
-		pinmux = <28 IOC_PORT_GPIO>;
-	};
-	board_ant_24g_on: board_ant_24g_on {
-		pinmux = <28 IOC_PORT_RFC_GPO0>;
-	};
 	board_ant_tx_pa_off: board_ant_tx_pa_off {
 		pinmux = <29 IOC_PORT_GPIO>;
 	};

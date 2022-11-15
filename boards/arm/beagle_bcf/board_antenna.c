@@ -91,43 +91,23 @@ void board_cc13xx_rf_callback(RF_Handle client, RF_GlobalEvent events, void *arg
 			break;
 		}
 
-		if (sub1GHz) {
-			/* Sub-1 GHz */
-			if (paType == RF_TxPowerTable_HighPA) {
-				/* PA enable --> HIGH PA */
-				/* LNA enable --> Sub-1 GHz */
-				/* Note: RFC_GPO3 is a work-around because the RFC_GPO1 */
-				/* is sometimes not de-asserted on CC1352 Rev A. */
-				IOCPortConfigureSet(BOARD_RF_HIGH_PA,
-						IOC_PORT_RFC_GPO3, IOC_IOMODE_NORMAL);
-				IOCPortConfigureSet(BOARD_RF_SUB1GHZ,
-						IOC_PORT_RFC_GPO0, IOC_IOMODE_NORMAL);
-			} else {
-				/* RF core active --> Sub-1 GHz */
-				IOCPortConfigureSet(BOARD_RF_HIGH_PA,
-						IOC_PORT_GPIO, IOC_IOMODE_NORMAL);
-				IOCPortConfigureSet(BOARD_RF_SUB1GHZ,
-						IOC_PORT_GPIO, IOC_IOMODE_NORMAL);
-				GPIO_setOutputEnableDio(BOARD_RF_SUB1GHZ, GPIO_OUTPUT_ENABLE);
-			}
+		/* Sub-1 GHz */
+		if (paType == RF_TxPowerTable_HighPA) {
+			/* PA enable --> HIGH PA */
+			/* LNA enable --> Sub-1 GHz */
+			/* Note: RFC_GPO3 is a work-around because the RFC_GPO1 */
+			/* is sometimes not de-asserted on CC1352 Rev A. */
+			IOCPortConfigureSet(BOARD_RF_HIGH_PA,
+					IOC_PORT_RFC_GPO3, IOC_IOMODE_NORMAL);
+			IOCPortConfigureSet(BOARD_RF_SUB1GHZ,
+					IOC_PORT_RFC_GPO0, IOC_IOMODE_NORMAL);
 		} else {
-			/* 2.4 GHz */
-			if (paType == RF_TxPowerTable_HighPA) {
-				/* PA enable --> HIGH PA */
-				/* LNA enable --> 2.4 GHz */
-				/* Note: RFC_GPO3 is a work-around because the RFC_GPO1 */
-				/* is sometimes not de-asserted on CC1352 Rev A. */
-				IOCPortConfigureSet(BOARD_RF_HIGH_PA,
-						IOC_PORT_RFC_GPO3, IOC_IOMODE_NORMAL);
-				IOCPortConfigureSet(BOARD_RF_SUB1GHZ,
-						IOC_PORT_GPIO, IOC_IOMODE_NORMAL);
-			} else {
-				/* RF core active --> 2.4 GHz */
-				IOCPortConfigureSet(BOARD_RF_HIGH_PA,
-						IOC_PORT_GPIO, IOC_IOMODE_NORMAL);
-				IOCPortConfigureSet(BOARD_RF_SUB1GHZ,
-						IOC_PORT_GPIO, IOC_IOMODE_NORMAL);
-			}
+			/* RF core active --> Sub-1 GHz */
+			IOCPortConfigureSet(BOARD_RF_HIGH_PA,
+					IOC_PORT_GPIO, IOC_IOMODE_NORMAL);
+			IOCPortConfigureSet(BOARD_RF_SUB1GHZ,
+					IOC_PORT_GPIO, IOC_IOMODE_NORMAL);
+			GPIO_setOutputEnableDio(BOARD_RF_SUB1GHZ, GPIO_OUTPUT_ENABLE);
 		}
 	} else {
 		/* Reset the IO multiplexer to GPIO functionality */
