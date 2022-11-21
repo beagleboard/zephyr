@@ -1144,7 +1144,7 @@ if __name__ == "__main__":
     print("CC2538 BSL script customized for Laughing Coyote CC1352P target!")
     cc1352_enter_bsl_mode()
     # print(sys.argv[1:])
-    port = None
+    port = "/dev/ttyS4"
     file = sys.argv[1]
     if not sys.argv[1].endswith(".bin"):
         file += '/zephyr/zephyr.bin'
