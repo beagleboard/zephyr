@@ -52,6 +52,7 @@ import os
 import struct
 import binascii
 import traceback
+import gpiod
 
 try:
     import magic
@@ -81,6 +82,28 @@ except ImportError:
     print('   pip3 install pyserial')
     sys.exit(1)
 
+# CC1352 BOOT and RESET GPIO names
+CC1352_BOOT_GPIO=13
+CC1352_RESET_GPIO=14
+
+def cc1352_enter_bsl_mode():
+    gpiochip1 = gpiod.Chip("gpiochip1", gpiod.Chip.OPEN_BY_NAME)
+    cc1352_boot_line = gpiochip1.get_line(CC1352_BOOT_GPIO)
+    cc1352_reset_line = gpiochip1.get_line(CC1352_RESET_GPIO)
+    cc1352_boot_line.request(consumer="cc2538-bsl", type=gpiod.LINE_REQ_DIR_OUT)
+    cc1352_reset_line.request(consumer="cc2538-bsl", type=gpiod.LINE_REQ_DIR_OUT)
+    #make boot line 0 and reset cycle
+    cc1352_boot_line.set_value(0)
+    cc1352_reset_line.set_value(0)
+    time.sleep(0.1)
+    cc1352_reset_line.set_value(1)
+    time.sleep(0.1)
+    #set boot line to high and make as input for driving externally
+    cc1352_boot_line.set_value(1)
+    cc1352_boot_line.set_direction_input()
+    cc1352_reset_line.set_direction_input()
+    cc1352_boot_line.release()
+    cc1352_reset_line.release()
 
 def mdebug(level, message, attr='\n'):
     if QUIET >= level:
@@ -1118,7 +1141,8 @@ def main(file, port=None, erase=1, write=1, verify=1, baud=50000):
         exit('ERROR: %s' % str(err))
 
 if __name__ == "__main__":
-    # print("RUN CC2535-BSL!")
+    print("CC2538 BSL script customized for Laughing Coyote CC1352P target!")
+    cc1352_enter_bsl_mode()
     # print(sys.argv[1:])
     port = None
     file = sys.argv[1]
@@ -1127,4 +1151,4 @@ if __name__ == "__main__":
     if len(sys.argv) > 2:
         port = sys.argv[2]
     main(file, port)
-    
+
