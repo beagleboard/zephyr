@@ -135,7 +135,7 @@
        		compatible = "beagle,usbbridge";
        		reg = <0x4>;
        		label = "MSP430-USBBRIDGE";
-    	;
+    	};
 };
 
 &spi0 {
@@ -158,7 +158,7 @@
        		t-enter-dpd = <20000>;
        		t-exit-dpd = <100000>;
        		jedec-id = [c8 40 15];
-    	;
+    	};
 };
 
 &rtc {
