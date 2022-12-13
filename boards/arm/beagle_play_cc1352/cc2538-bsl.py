@@ -87,19 +87,23 @@ CC1352_BOOT_GPIO=13
 CC1352_RESET_GPIO=14
 
 def cc1352_enter_bsl_mode():
-    gpiochip1 = gpiod.Chip("gpiochip1", gpiod.Chip.OPEN_BY_NAME)
-    cc1352_boot_line = gpiochip1.get_line(CC1352_BOOT_GPIO)
-    cc1352_reset_line = gpiochip1.get_line(CC1352_RESET_GPIO)
+    gpiochip = gpiod.Chip("gpiochip2", gpiod.Chip.OPEN_BY_NAME)
+    cc1352_boot_line = gpiochip.get_line(CC1352_BOOT_GPIO)
+    cc1352_reset_line = gpiochip.get_line(CC1352_RESET_GPIO)
     cc1352_boot_line.request(consumer="cc2538-bsl", type=gpiod.LINE_REQ_DIR_OUT)
     cc1352_reset_line.request(consumer="cc2538-bsl", type=gpiod.LINE_REQ_DIR_OUT)
     #make boot line 0 and reset cycle
+    print('Setting BOOT and RESET low')
     cc1352_boot_line.set_value(0)
     cc1352_reset_line.set_value(0)
-    time.sleep(0.1)
+    time.sleep(0.2)
+    print('Setting RESET high')
     cc1352_reset_line.set_value(1)
-    time.sleep(0.1)
+    time.sleep(0.2)
     #set boot line to high and make as input for driving externally
+    print('Setting BOOT high')
     cc1352_boot_line.set_value(1)
+    time.sleep(0.2)
     cc1352_boot_line.set_direction_input()
     cc1352_reset_line.set_direction_input()
     cc1352_boot_line.release()
