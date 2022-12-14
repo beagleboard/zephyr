@@ -21,6 +21,7 @@
 		sw0 = &button0;
 		sensor0 = &light;
 		sensor1 = &humidity;
+		spi-flash0 = &spi_flash0;
 	};
 
 	chosen {
@@ -148,7 +149,7 @@
        		<&gpio0 28 GPIO_ACTIVE_LOW>,  // mikroBUS port 1
        		<&gpio0 27 GPIO_ACTIVE_LOW>;  // mikroBUS port 2
 
-    	_flash: gd25q16c@0 {
+    	spi_flash0: gd25q16c@0 {
        		compatible = "jedec,spi-nor";
        		reg = <0>;
        		spi-max-frequency = <2000000>;
@@ -158,6 +159,20 @@
        		t-enter-dpd = <20000>;
        		t-exit-dpd = <100000>;
        		jedec-id = [c8 40 15];
+
+/*
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			
+			boot_partition: partition@0 {
+				label = "mcuboot";
+				reg = <0x00000000 0x00010000>;
+				read-only;
+			};
+		};
+*/
     	};
 };
 
@@ -170,5 +185,5 @@
 };
 
 &ieee802154g {
-	status = "disabled";
+	status = "okay";
 };
