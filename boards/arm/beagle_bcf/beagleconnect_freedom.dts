@@ -144,7 +144,7 @@
 		&spi0_miso_default &spi0_cs0_default
 		&spi0_cs1_default &spi0_cs2_default>;
 	pinctrl-names = "default";
-    	gpios = <&gpio0 8 GPIO_ACTIVE_LOW>, // SPI flash
+    	cs-gpios = <&gpio0 8 GPIO_ACTIVE_LOW>, // SPI flash
        		<&gpio0 28 GPIO_ACTIVE_LOW>,  // mikroBUS port 1
        		<&gpio0 27 GPIO_ACTIVE_LOW>;  // mikroBUS port 2
 
