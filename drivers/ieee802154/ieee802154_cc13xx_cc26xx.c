@@ -155,7 +155,17 @@ static inline int ieee802154_cc13xx_cc26xx_channel_to_frequency(
 	__ASSERT_NO_MSG(frequency != NULL);
 	__ASSERT_NO_MSG(fractFreq != NULL);
 
-	if (channel >= IEEE802154_2_4_GHZ_CHANNEL_MIN
+	if (channel == IEEE802154_SUB_GHZ_CHANNEL_MIN) {
+		*frequency = 868;
+		/*
+		 * uint16_t fractional part of 868.3 MHz
+		 * equivalent to (0.3 * 1000 * BIT(16)) / 1000, rounded up
+		 */
+		*fractFreq = 0x4ccd;
+	} else if (1 <= channel && channel <= IEEE802154_SUB_GHZ_CHANNEL_MAX) {
+		*frequency = 906 + 2 * (channel - 1);
+		*fractFreq = 0;
+	} else if (IEEE802154_2_4_GHZ_CHANNEL_MIN <= channel
 		&& channel <= IEEE802154_2_4_GHZ_CHANNEL_MAX) {
 		*frequency = 2405 + 5 * (channel - IEEE802154_2_4_GHZ_CHANNEL_MIN);
 		*fractFreq = 0;
