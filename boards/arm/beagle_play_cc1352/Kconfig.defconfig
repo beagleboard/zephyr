@@ -1,12 +1,11 @@
-# BeagleConnect Freedom board configuration
+# BeaglePlay CC1352 board configuration
 
-# Copyright (c) 2020 Erik Larson
-# Copyright (c) 2020 Jason Kridner, BeagleBoard.org Foundation
+# Copyright (c) 2022 Jason Kridner, BeagleBoard.org Foundation
 # SPDX-License-Identifier: Apache-2.0
 
-if BOARD_BEAGLECONNECT_FREEDOM
+if BOARD_BEAGLEPLAY
 
 config BOARD
-	default "beagleconnect_freedom"
+	default "beagleplay"
 
-endif # BOARD_BEAGLECONNECT_FREEDOM
+endif # BOARD_BEAGLEPLAY

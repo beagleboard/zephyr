@@ -92,5 +92,5 @@
 };
 
 &ieee802154g {
-	status = "disabled";
+	status = "okay";
 };
