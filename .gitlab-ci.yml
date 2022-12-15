@@ -6,7 +6,8 @@ variables:
 build:
   stage: build
   before_script:
-    - rm -rf !($BEAGLE_SDK)
+    - cd /builds/beagleplay
+    - rm -rf !(zephyr-beagle-cc1352)
     - west init -l $BEAGLE_SDK
     - cd $BEAGLE_SDK
     - west update
