@@ -2,6 +2,7 @@ image: zephyrprojectrtos/zephyr-build:v0.24.7
 
 variables:
   BEAGLE_SDK: "/builds/beagleplay/zephyr-beagle-cc1352"
+  ZEPHYR_BASE: "/builds/beagleplay/zephyr-beagle-cc1352"
 
 build:
   stage: build
