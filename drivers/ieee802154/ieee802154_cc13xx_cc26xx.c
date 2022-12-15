@@ -182,7 +182,6 @@ static int ieee802154_cc13xx_cc26xx_set_channel(const struct device *dev,
 						uint16_t channel)
 {
 	int r;
-	RF_Stat status;
 	RF_CmdHandle cmd_handle;
 	RF_EventMask reason;
 	uint16_t freq, fract;
