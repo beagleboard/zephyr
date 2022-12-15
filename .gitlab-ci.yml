@@ -1,0 +1,22 @@
+image: zephyrprojectrtos/zephyr-build:v0.24.7
+
+variables:
+  BEAGLE_SDK: "/builds/beagleplay/zephyr-beagle-cc1352"
+
+build:
+  stage: build
+  before_script:
+    - rm -rf !($BEAGLE_SDK)
+    - west init -l $BEAGLE_SDK
+    - cd $BEAGLE_SDK
+    - west update
+    - west zephyr-export
+    - pip3 install -r scripts/requirements-base.txt
+  script:
+    - cd $BEAGLE_SDK
+    - west build -d build/play/blinky -b beagleplay samples/basic/blinky
+    - west build -d build/freedom/blinky -b beagleconnect_freedom samples/basic/blinky
+    - west build -d build/freedom/sensortest -b beagleconnect_freedom samples/boards/beagleconnect_freedom/sensortest
+  artifacts:
+    paths:
+      - build
