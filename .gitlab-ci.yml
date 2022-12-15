@@ -1,0 +1,18 @@
+image: zephyrprojectrtos/zephyr-build:v0.24.7
+
+variables:
+  ZEPHYR_BASE: "/builds/beagleconnect/zephyr/zephyr"
+
+build:
+  stage: build
+  script:
+    - rm -rf ../.west
+    - west init -l .
+    - west update
+    - west zephyr-export
+    - pip3 install -r scripts/requirements-base.txt
+    - west build -d build/freedom/blinky -b beagleconnect_freedom samples/basic/blinky
+    - west build -d build/freedom/sensortest -b beagleconnect_freedom samples/boards/beagleconnect_freedom/sensortest
+  artifacts:
+    paths:
+      - build
