@@ -81,6 +81,7 @@
 	current-speed = <115200>;
 	pinctrl-0 = <&uart0_rx_default &uart0_tx_default>;
 	pinctrl-names = "default";
+	label = "UART_0";
 };
 
 &rtc {
