@@ -593,7 +593,7 @@ static void ieee802154_cc13xx_cc26xx_subg_rx_done(
 			status = drv_data->rx_data[i][len--];
 			rssi = drv_data->rx_data[i][len--];
 
-			if (IS_ENABLED(CONFIG_IEEE802154_RAW_MODE)) {
+			if (IS_ENABLED(CONFIG_IEEE802154_RAW_MODE) && len > 0) {
 				/* append CRC-16/CCITT */
 				uint16_t crc = 0;
 
