@@ -14,7 +14,7 @@ build:
     - west build -d build/play/blinky -b beagleplay samples/basic/blinky
     - west build -d build/freedom/blinky -b beagleconnect_freedom samples/basic/blinky
     - west build -d build/freedom/sensortest -b beagleconnect_freedom samples/boards/beagleconnect_freedom/sensortest
-    - cp boards/arm/beagle_play/cc2538-bsl.py build/play/
+    - cp boards/arm/beagle_play_cc1352/cc2538-bsl.py build/play/
     - cp boards/arm/beagle_bcf/cc2538-bsl.py build/freedom/
   artifacts:
     paths:
