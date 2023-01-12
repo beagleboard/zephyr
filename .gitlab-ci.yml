@@ -8,7 +8,6 @@ build:
   stage: build
   script:
     - west init -l $BEAGLE_SDK
-    - cd $BEAGLE_SDK/zephyr
     - west update
     - west zephyr-export
     - pip3 install -r scripts/requirements-base.txt
