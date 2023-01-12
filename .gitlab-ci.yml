@@ -2,11 +2,11 @@ image: zephyrprojectrtos/zephyr-build:v0.24.7
 
 variables:
   ZEPHYR_BASE: "/builds/beagleplay/cc1352/zephyr-beagle-cc1352"
-  GIT_CLEAN_FLAGS: -ffdx
 
 build:
   stage: build
   script:
+    - rm -rf ../.west
     - west init -l .
     - west update
     - west zephyr-export
