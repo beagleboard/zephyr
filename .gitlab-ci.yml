@@ -1,5 +1,8 @@
 image: zephyrprojectrtos/zephyr-build:v0.24.7
 
+variables:
+  ZEPHYR_BASE: "/builds/beagleplay/cc1352/zephyr-beagle-cc1352"
+
 build:
   stage: build
   script:
