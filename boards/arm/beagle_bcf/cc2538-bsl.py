@@ -1087,18 +1087,18 @@ if __name__ == "__main__":
             'force_speed': 0,
             'address': None,
             'force': 0,
-            'erase': 0,
-            'write': 0,
+            'erase': 1,
+            'write': 1,
             'erase_page': 0,
-            'verify': 0,
+            'verify': 1,
             'read': 0,
             'len': 0x80000,
             'fname': '',
-            'append': '',
+            'append': '/zephyr/zephyr.bin',
             'ieee_address': 0,
             'bootloader_active_high': False,
             'bootloader_invert_lines': False,
-            'bootloader_send_break': False,
+            'bootloader_send_break': True,
             'disable-bootloader': 0
         }
 
