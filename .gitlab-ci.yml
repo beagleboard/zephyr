@@ -1,13 +1,9 @@
 image: zephyrprojectrtos/zephyr-build:v0.24.7
 
-variables:
-  BEAGLE_SDK: "/builds/beagleplay/cc1352/zephyr-beagle-cc1352"
-  ZEPHYR_BASE: "/builds/beagleplay/cc1352/zephyr-beagle-cc1352"
-
 build:
   stage: build
   script:
-    - west init -l $BEAGLE_SDK
+    - west init -l .
     - west update
     - west zephyr-export
     - pip3 install -r scripts/requirements-base.txt
