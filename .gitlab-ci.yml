@@ -6,6 +6,7 @@ variables:
 build:
   stage: build
   script:
+    - rm -rf ../.west
     - west init -l .
     - west update
     - west zephyr-export
