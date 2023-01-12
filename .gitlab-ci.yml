@@ -10,12 +10,12 @@ build:
     - cd /builds/beagleplay
     - rm -rf $(ls -A -I zephyr-beagle-cc1352)
     - west init -l $BEAGLE_SDK
-    - cd $BEAGLE_SDK
+    - cd $BEAGLE_SDK/zephyr
     - west update
     - west zephyr-export
     - pip3 install -r scripts/requirements-base.txt
   script:
-    - cd $BEAGLE_SDK
+    - cd $BEAGLE_SDK/zephyr
     - west build -d build/play/blinky -b beagleplay samples/basic/blinky
     - west build -d build/freedom/blinky -b beagleconnect_freedom samples/basic/blinky
     - west build -d build/freedom/sensortest -b beagleconnect_freedom samples/boards/beagleconnect_freedom/sensortest
