@@ -1,8 +1,6 @@
 /* TI ADS1X1X ADC
  *
  * Copyright (c) 2021 Facebook, Inc
- * Copyright (c) 2021 Jackychen
- * Copyright (c) 2021 Jason Kridner, BeagleBoard.org Foundation
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -424,6 +422,21 @@ static int ads1x1x_validate_sequence(const struct device *dev, const struct adc_
 	uint8_t resolution = data->differential ? config->resolution : config->resolution - 1;
 	int err;
 
+	if (sequence->resolution != resolution) {
+		LOG_ERR("unsupported resolution %d", sequence->resolution);
+		return -ENOTSUP;
+	}
+
+	if (sequence->channels != BIT(0)) {
+		LOG_ERR("only channel 0 supported");
+		return -ENOTSUP;
+	}
+
+	if (sequence->oversampling) {
+		LOG_ERR("oversampling not supported");
+		return -ENOTSUP;
+	}
+
 	err = ads1x1x_validate_buffer_size(sequence);
 	if (err) {
 		LOG_ERR("buffer size too small");
@@ -516,19 +529,9 @@ static void ads1x1x_acquisition_thread(const struct device *dev)
 {
 	struct ads1x1x_data *data = dev->data;
 	int rc;
-	uint16_t result = 0;
-	uint16_t needed;
-	uint16_t valid;
-	uint16_t samples;
-	uint64_t acc;
 
 	while (true) {
 		k_sem_take(&data->acq_sem, K_FOREVER);
-
-		acc = 0;
-		samples = 0;
-		valid = 0;
-		needed = 1 << data->oversampling;
 
 		rc = ads1x1x_wait_data_ready(dev);
 		if (rc != 0) {

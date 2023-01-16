@@ -41,8 +41,6 @@
 #define DT_DRV_COMPAT ti_cc32xx_adc
 #elif DT_HAS_COMPAT_STATUS_OKAY(raspberrypi_pico_adc)
 #define DT_DRV_COMPAT raspberrypi_pico_adc
-#elif DT_HAS_COMPAT_STATUS_OKAY(ti_ads1115)
-#define DT_DRV_COMPAT ti_ads1115
 #elif DT_HAS_COMPAT_STATUS_OKAY(zephyr_adc_emul)
 #define DT_DRV_COMPAT zephyr_adc_emul
 #else
