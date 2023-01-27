@@ -19,6 +19,7 @@
 	aliases {
 		led0 = &led0;
 		sw0 = &button0;
+		mcuboot-button0 = &button0;
 		sensor0 = &light;
 		sensor1 = &humidity;
 		spi-flash0 = &spi_flash0;
@@ -58,12 +59,12 @@
 
 	sens_i2c: sensor-switch {
 		status = "okay";
-        	compatible = "ti,ts5a2066";
-        	#address-cells = <1>;
-        	#size-cells = <0>;
-        	controller = <&i2c0>;
-        	gpios = <&gpio0 14 GPIO_ACTIVE_HIGH>;
-        	label = "I2C_0S";
+		compatible = "ti,ts5a2066";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		controller = <&i2c0>;
+		gpios = <&gpio0 14 GPIO_ACTIVE_HIGH>;
+		label = "I2C_0S";
 
 		light: opt3001-light@44 {
 			status = "okay";
@@ -92,6 +93,26 @@
 			power-state-name = "standby";
 			min-residency-us = <5000>;
 			exit-latency-us = <240>;
+		};
+	};
+};
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		/* Allocate 128 KiB for mcuboot */
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x00000000 0x00020000>;
+		};
+
+		/* Allocate 568 KiB for application (avoid touching CCFG) */
+		slot0_partition: partition@20000 {
+			label = "image-0";
+			reg = <0x00020000 0x0008e000>;
 		};
 	};
 };
@@ -135,10 +156,10 @@
 	pinctrl-names = "default", "sleep";
 
 	mcu: msp430-usbbridge@4 {
-       		compatible = "beagle,usbbridge";
-       		reg = <0x4>;
-       		label = "MSP430-USBBRIDGE";
-    	};
+		compatible = "beagle,usbbridge";
+		reg = <0x4>;
+		label = "MSP430-USBBRIDGE";
+	};
 };
 
 &spi0 {
@@ -147,35 +168,45 @@
 		&spi0_miso_default &spi0_cs0_default
 		&spi0_cs1_default &spi0_cs2_default>;
 	pinctrl-names = "default";
-    	cs-gpios = <&gpio0 8 GPIO_ACTIVE_LOW>, // SPI flash
-       		<&gpio0 28 GPIO_ACTIVE_LOW>,  // mikroBUS port 1
-       		<&gpio0 27 GPIO_ACTIVE_LOW>;  // mikroBUS port 2
+	cs-gpios = <&gpio0 8 GPIO_ACTIVE_LOW>, // SPI flash
+		<&gpio0 28 GPIO_ACTIVE_LOW>,  // mikroBUS port 1
+		<&gpio0 27 GPIO_ACTIVE_LOW>;  // mikroBUS port 2
 
-    	spi_flash0: gd25q16c@0 {
-       		compatible = "jedec,spi-nor";
-       		reg = <0>;
-       		spi-max-frequency = <2000000>;
-       		size = <0x200000>;
-       		//has-be32k;
-       		has-dpd;
-       		t-enter-dpd = <20000>;
-       		t-exit-dpd = <100000>;
-       		jedec-id = [c8 40 15];
+	spi_flash0: gd25q16c@0 {
+		compatible = "jedec,spi-nor";
+		reg = <0>;
+		spi-max-frequency = <2000000>;
+		size = <0x200000>;
+		//has-be32k;
+		has-dpd;
+		t-enter-dpd = <20000>;
+		t-exit-dpd = <100000>;
+		jedec-id = [c8 40 15];
 
-/*
 		partitions {
 			compatible = "fixed-partitions";
 			#address-cells = <1>;
 			#size-cells = <1>;
 			
-			boot_partition: partition@0 {
-				label = "mcuboot";
-				reg = <0x00000000 0x00010000>;
-				read-only;
+			/* Allocate 568 KiB for application */
+			slot1_partition: partition@0 {
+				label = "image-1";
+				reg = <0x00000000 0x0008e000>;
+			};
+
+			/* Allocate 128 KiB scratch for image swap */
+			scratch_partition: partition@8e000 {
+				label = "image-scratch";
+				reg = <0x0008e000 0x00020000>;
+			};
+
+			/* Allocate 1 MiB storage partition */
+			storage_partition: partition@ae000 {
+				label = "storage";
+				reg = <0x000ae000 DT_SIZE_K(1024)>;
 			};
 		};
-*/
-    	};
+	};
 };
 
 &rtc {
