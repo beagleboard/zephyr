@@ -11,6 +11,7 @@ build:
     - west update
     - west zephyr-export
     - pip3 install -r scripts/requirements-base.txt
+    - pip3 install -r ../bootloader/mcuboot/scripts/requirements.txt
     - west build -d build/freedom/blinky -b beagleconnect_freedom samples/basic/blinky
     - west build -d build/freedom/sensortest -b beagleconnect_freedom samples/boards/beagleconnect_freedom/sensortest
     - west build -d build/freedom/mcuboot -b beagleconnect_freedom ../bootloader/mcuboot/boot/zephyr
