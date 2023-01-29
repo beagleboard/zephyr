@@ -116,6 +116,9 @@ manifest:
       path: modules/tee/tf-m/trusted-firmware-m
       groups:
         - tee
+    - name: zcbor
+      revision: 0.6.0
+      path: modules/lib/zcbor
 
   self:
     path: zephyr
