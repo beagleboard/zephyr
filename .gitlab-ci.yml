@@ -16,6 +16,10 @@ build:
     - west build -d build/freedom/sensortest -b beagleconnect_freedom samples/boards/beagleconnect_freedom/sensortest
     - west build -d build/freedom/mcuboot -b beagleconnect_freedom ../bootloader/mcuboot/boot/zephyr
     - west build -d build/freedom/mcumgr -b beagleconnect_freedom samples/subsys/mgmt/mcumgr/smp_svr
+    - west sign -t imgtool -d build/freedom/mcumgr
+    - mkdir -p build/freedom/mcumgr-w-boot/zephyr
+    - cp build/freedom/mcuboot/zephyr/zephyr.bin build/freedom/mcumgr-w-boot/zephyr/zephyr.bin
+    - dd conv=notrunc bs=1 if=build/freedom/mcumgr/zephyr/zephyr.signed.bin of=build/freedom/mcumgr-w-boot/zephyr/zephyr.bin seek=131072
     - cp boards/arm/beagle_bcf/cc2538-bsl.py build/freedom/
   artifacts:
     paths:
