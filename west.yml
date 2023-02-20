@@ -23,6 +23,8 @@ manifest:
       url-base: https://github.com/zephyrproject-rtos
     - name: vaishnavachath
       url-base: https://github.com/vaishnavachath
+    - name: beagleconnect
+      url-base: https://git.beagleboard.org/beagleconnect/zephyr
 
   #
   # Please add items below based on alphabetical order
@@ -119,6 +121,10 @@ manifest:
     - name: zcbor
       revision: 0.6.0
       path: modules/lib/zcbor
+    - name: greybus-for-zephyr
+      remote: beagleconnect
+      revision: 6dbf31ce41daa3ba0a942665f10b2fb517f82952
+      path: greybus
 
   self:
     path: zephyr
