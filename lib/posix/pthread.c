@@ -11,9 +11,19 @@
 
 #include <zephyr/init.h>
 #include <zephyr/kernel.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <zephyr/sys/atomic.h>
 #include <zephyr/posix/pthread.h>
 #include <zephyr/sys/slist.h>
+
+#include "posix_internal.h"
+
+#ifdef CONFIG_PTHREAD_DYNAMIC_STACK_DEFAULT_SIZE
+#define DYNAMIC_STACK_SIZE CONFIG_PTHREAD_DYNAMIC_STACK_DEFAULT_SIZE
+#else
+#define DYNAMIC_STACK_SIZE 0
+#endif
 
 #define PTHREAD_INIT_FLAGS	PTHREAD_CANCEL_ENABLE
 #define PTHREAD_CANCELED	((void *) -1)
@@ -265,21 +275,15 @@ static void posix_thread_finalize(struct posix_thread *t, void *retval)
 FUNC_NORETURN
 static void zephyr_thread_wrapper(void *arg1, void *arg2, void *arg3)
 {
-	int err;
-	int barrier;
-	void *(*fun_ptr)(void *arg) = arg2;
-	struct posix_thread *t = CONTAINER_OF(k_current_get(), struct posix_thread, thread);
+	void * (*fun_ptr)(void *) = arg3;
+	struct _thread_stack_info *stack_info
+		= &k_current_get()->stack_info;
 
-	if (IS_ENABLED(CONFIG_PTHREAD_CREATE_BARRIER)) {
-		/* cross the barrier so that pthread_create() can continue */
-		barrier = POINTER_TO_UINT(arg3);
-		err = pthread_barrier_wait(&barrier);
-		__ASSERT_NO_MSG(err == 0 || err == PTHREAD_BARRIER_SERIAL_THREAD);
-	}
-
-	posix_thread_finalize(t, fun_ptr(arg1));
-
-	CODE_UNREACHABLE;
+	__ASSERT_NO_MSG(stack_info->delta == 0);
+	stack_info->delta = (size_t)
+			((uint8_t *)stack_info->start - (uint8_t *)arg2);
+	fun_ptr(arg1);
+	pthread_exit(NULL);
 }
 
 /**
@@ -299,9 +303,41 @@ int pthread_create(pthread_t *th, const pthread_attr_t *_attr, void *(*threadrou
 	struct posix_thread *safe_t;
 	struct posix_thread *t = NULL;
 	const struct pthread_attr *attr = (const struct pthread_attr *)_attr;
+	struct pthread_attr dynamic_attr;
+	k_thread_stack_t *dynamic_stack = NULL;
+	/* a non-const pthread_attr_t* that we can modify, if needed */
+	struct pthread_attr *mattr = (struct pthread_attr *)attr;
 
-	if (!pthread_attr_is_valid(attr)) {
-		return EINVAL;
+	if (mattr != NULL && mattr->initialized == 0) {
+ 		return EINVAL;
+ 	}
+
+	if (mattr == NULL || mattr->stack == NULL) {
+		if (IS_ENABLED(CONFIG_PTHREAD_DYNAMIC_STACK)) {
+			/*
+			 * We dynamically allocate space when either
+			 * 1) attr == NULL -> use DYNAMIC_STACK_SIZE, or
+			 * 2) attr != NULL && attr->stack == NULL
+			 *    -> allocate attr->stacksize
+			 */
+			if (mattr == NULL) {
+				(void) pthread_attr_init(&dynamic_attr);
+				dynamic_attr.stacksize = DYNAMIC_STACK_SIZE;
+				mattr = &dynamic_attr;
+			}
+
+			dynamic_stack = k_aligned_alloc(ARCH_STACK_PTR_ALIGN,
+				Z_KERNEL_STACK_SIZE_ADJUST(mattr->stacksize));
+			if (dynamic_stack == NULL) {
+				return EAGAIN;
+			}
+
+			__ASSERT_NO_MSG(dynamic_stack != NULL);
+			mattr->stack = dynamic_stack;
+			mattr->flags |= K_STACK_ON_HEAP;
+		} else {
+			return EINVAL;
+		}
 	}
 
 	key = k_spin_lock(&pthread_pool_lock);
@@ -334,43 +370,39 @@ int pthread_create(pthread_t *th, const pthread_attr_t *_attr, void *(*threadrou
 	}
 	k_spin_unlock(&pthread_pool_lock, key);
 
-	if (IS_ENABLED(CONFIG_PTHREAD_CREATE_BARRIER)) {
-		err = pthread_barrier_init(&barrier, NULL, 2);
-		if (err != 0) {
-			/* cannot allocate barrier. move thread back to ready_q */
-			key = k_spin_lock(&pthread_pool_lock);
-			sys_dlist_remove(&t->q_node);
-			sys_dlist_append(&ready_q, &t->q_node);
-			t->qid = POSIX_THREAD_READY_Q;
-			k_spin_unlock(&pthread_pool_lock, key);
-			t = NULL;
+	if (pthread_num >= CONFIG_MAX_PTHREAD_COUNT) {
+		if (IS_ENABLED(CONFIG_PTHREAD_DYNAMIC_STACK)
+			&& dynamic_stack != NULL) {
+			free(dynamic_stack);
 		}
-	}
-
-	if (t == NULL) {
-		/* no threads are ready */
 		return EAGAIN;
 	}
-
-	/* spawn the thread */
-	k_thread_create(&t->thread, attr->stack, attr->stacksize, zephyr_thread_wrapper,
-			(void *)arg, threadroutine,
-			IS_ENABLED(CONFIG_PTHREAD_CREATE_BARRIER) ? UINT_TO_POINTER(barrier)
-								       : NULL,
-			posix_to_zephyr_priority(attr->priority, attr->schedpolicy), attr->flags,
-			K_MSEC(attr->delayedstart));
-
-	if (IS_ENABLED(CONFIG_PTHREAD_CREATE_BARRIER)) {
-		/* wait for the spawned thread to cross our barrier */
-		err = pthread_barrier_wait(&barrier);
-		__ASSERT_NO_MSG(err == 0 || err == PTHREAD_BARRIER_SERIAL_THREAD);
-		err = pthread_barrier_destroy(&barrier);
-		__ASSERT_NO_MSG(err == 0);
+	rv = pthread_mutex_init(&thread->state_lock, NULL);
+	if (rv != 0) {
+		key = k_spin_lock(&pthread_pool_lock);
+		thread->state = PTHREAD_EXITED;
+		k_spin_unlock(&pthread_pool_lock, key);
+		return rv;
 	}
 
-	/* finally provide the initialized thread to the caller */
-	*th = mark_pthread_obj_initialized(posix_thread_to_offset(t));
+	prio = posix_to_zephyr_priority(mattr->priority, mattr->schedpolicy);
 
+	cancel_key = k_spin_lock(&thread->cancel_lock);
+	thread->cancel_state = (1 << _PTHREAD_CANCEL_POS) & mattr->flags;
+	thread->cancel_pending = 0;
+	k_spin_unlock(&thread->cancel_lock, cancel_key);
+
+	pthread_mutex_lock(&thread->state_lock);
+	thread->state = mattr->detachstate;
+	pthread_mutex_unlock(&thread->state_lock);
+
+	pthread_cond_init(&thread->state_cond, &cond_attr);
+	sys_slist_init(&thread->key_list);
+
+	*newthread = pthread_num;
+	k_thread_create(&thread->thread, mattr->stack, mattr->stacksize,
+			(k_thread_entry_t) zephyr_thread_wrapper, (void *)arg, dynamic_stack, threadroutine,
+			prio, (~K_ESSENTIAL & mattr->flags), K_MSEC(mattr->delayedstart));
 	return 0;
 }
 
@@ -560,8 +592,37 @@ void pthread_exit(void *retval)
 	self->cancel_state = PTHREAD_CANCEL_ENABLE;
 	k_spin_unlock(&pthread_pool_lock, key);
 
-	posix_thread_finalize(self, retval);
-	CODE_UNREACHABLE;
+	k_spin_unlock(&self->cancel_lock, cancel_key);
+
+	pthread_mutex_lock(&self->state_lock);
+	if (self->state == PTHREAD_JOINABLE) {
+		self->state = PTHREAD_EXITED;
+		self->retval = retval;
+		pthread_cond_broadcast(&self->state_cond);
+	} else {
+		self->state = PTHREAD_TERMINATED;
+	}
+
+	SYS_SLIST_FOR_EACH_NODE(&self->key_list, node_l) {
+		thread_spec_data = (pthread_thread_data *)node_l;
+		if (thread_spec_data != NULL) {
+			key_obj = thread_spec_data->key;
+			if (key_obj->destructor != NULL) {
+				(key_obj->destructor)(thread_spec_data->spec_data);
+			}
+		}
+	}
+
+	if ((self->thread.base.user_options & K_STACK_ON_HEAP) != 0) {
+		self->thread.fn_abort = zephyr_pthread_stack_reclaim;
+	}
+
+	pthread_mutex_unlock(&self->state_lock);
+	pthread_mutex_destroy(&self->state_lock);
+
+	pthread_cond_destroy(&self->state_cond);
+
+	k_thread_abort((k_tid_t)self);
 }
 
 /**
