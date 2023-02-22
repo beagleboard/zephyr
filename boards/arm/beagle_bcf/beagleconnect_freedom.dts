@@ -129,6 +129,7 @@
 
 &gpio0 {
 	status = "okay";
+	label = "GPIO_0";
 };
 
 /* Side away from battery connector (with MSP430) */
