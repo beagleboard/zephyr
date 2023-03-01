@@ -122,6 +122,7 @@ manifest:
       revision: 0.6.0
       path: modules/lib/zcbor
     - name: greybus-for-zephyr
+      submodules: true
       remote: beagleconnect
       revision: 7a0de5d4db440b3366f0658812cd8fbd26b32cf3
       path: greybus
