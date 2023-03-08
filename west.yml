@@ -78,7 +78,7 @@ manifest:
       groups:
         - crypto
     - name: mcuboot
-      revision: 1558e7ab0aadb4eac11f03befb5ccd3fa3f0aafe
+      revision: 2878eb4e32fabc14bc391c3221cbf285064d9db4
       path: bootloader/mcuboot
     - name: net-tools
       revision: e0828aa9629b533644dc96ff6d1295c939bd713c
