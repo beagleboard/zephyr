@@ -28,6 +28,8 @@ manifest:
     - name: beagleplay
       url-base: https://git.beagleboard.org/beagleplay/cc1352
 
+  group-filter: [-babblesim]
+
   #
   # Please add items below based on alphabetical order
   projects:
