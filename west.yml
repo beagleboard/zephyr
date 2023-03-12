@@ -25,6 +25,8 @@ manifest:
       url-base: https://github.com/vaishnavachath
     - name: beagleconnect
       url-base: https://git.beagleboard.org/beagleconnect/zephyr
+    - name: beagleplay
+      url-base: https://git.beagleboard.org/beagleplay/cc1352
 
   #
   # Please add items below based on alphabetical order
@@ -126,6 +128,10 @@ manifest:
       remote: beagleconnect
       revision: 7a0de5d4db440b3366f0658812cd8fbd26b32cf3
       path: greybus
+    - name: wpanusb
+      remote: beagleplay
+      path: wpanusb
+      revision: 03b32762de7d62baf6a2214066b449655e13aac8
 
   self:
     path: zephyr
