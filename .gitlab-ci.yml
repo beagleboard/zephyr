@@ -15,7 +15,9 @@ build:
     - west build -d temp/play/blinky -b beagleplay samples/basic/blinky
     - west build -d temp/play/wpanusb -b beagleplay ../modules/wpanusb
     - mkdir -p build/play/blinky/zephyr
-    - cp temp/play/zephyr/zephyr.bin build/play/zephyr.bin
+    - cp temp/play/blinky/zephyr/zephyr.bin build/play/blinky/zephyr
+    - mkdir -p build/play/wpanusb/zephyr
+    - cp temp/play/wpanusb/zephyr/zephyr.bin build/play/wpanusb/zephyr/
     - cp boards/arm/beagle_play_cc1352/cc2538-bsl.py build/play/
     - west build -d temp/freedom/blinky -b beagleconnect_freedom samples/basic/blinky
     - west build -d temp/freedom/sensortest -b beagleconnect_freedom samples/boards/beagleconnect_freedom/sensortest
