@@ -1,0 +1,55 @@
+/*
+ * Copyright (c) 2023 Jason Kridner, BeagleBoard.org Foundation
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+#include <ti/ti_am6254_a53.dtsi>
+
+/ {
+	model = "BeagleBoard.org BeaglePlay";
+	compatible = "ti,am6254";
+
+	chosen {
+		zephyr,console = &uart0;
+		zephyr,shell-uart = &uart0;
+		zephyr,sram = &ddr0;
+	};
+
+	cpus {
+		cpu@0 {
+			status = "okay";
+		};
+		cpu@1 {
+			status = "okay";
+		};
+		cpu@2 {
+			status = "okay";
+		};
+		cpu@3 {
+			status = "okay";
+		};
+	};
+
+	ddr0: memory@82000000 {
+		reg = <0x82000000 DT_SIZE_M(2)>;
+	};
+};
+
+&pinctrl {
+	uart0_rx_default: uart0_rx_default {
+		pinmux = <K3_PINMUX(0x1c8, PIN_INPUT, MUX_MODE_0)>;
+	};
+	uart0_tx_default: uart0_tx_default {
+		pinmux = <K3_PINMUX(0x1cc, PIN_OUTPUT, MUX_MODE_0)>;
+	};
+};
+
+&uart0 {
+	current-speed = <115200>;
+	pinctrl-0 = <&uart0_rx_default &uart0_tx_default>;
+	pinctrl-names = "default";
+	status = "okay";
+};

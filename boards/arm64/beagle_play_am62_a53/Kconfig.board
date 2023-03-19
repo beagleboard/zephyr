@@ -1,0 +1,6 @@
+# Copyright (c) 2023 Jason Kridner, BeagleBoard.org Foundation
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_BEAGLEPLAY_AM62_A53
+	bool "BeagleBoard.org BeaglePlay AM62 A53"
+	depends on SOC_SERIES_AM6X_A53
