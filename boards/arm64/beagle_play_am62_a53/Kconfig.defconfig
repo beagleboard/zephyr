@@ -1,0 +1,9 @@
+# Copyright (c) 2023 Enphase Energy
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_BEAGLEPLAY_AM62_A53
+
+config BOARD
+	default "beagleplay_am62_a53"
+
+endif # BOARD_BEAGLEPLAY_AM62_A53
