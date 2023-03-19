@@ -1,0 +1,10 @@
+# Copyright (c) 2023 Enphase Energy
+# Copyright (c) 2023 Jason Kridner, BeagleBoard.org Foundation
+# SPDX-License-Identifier: Apache-2.0
+
+if SOC_AM6254_A53
+
+config SOC
+	default "am6254"
+
+endif # SOC_AM6254_A53
