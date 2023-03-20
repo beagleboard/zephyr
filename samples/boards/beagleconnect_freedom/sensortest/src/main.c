@@ -94,7 +94,7 @@ static struct sockaddr_in6 addr;
 static int fd = -1;
 
 /* Set TIMED_SENSOR_READ to 0 to disable */
-#define TIMED_SENSOR_READ 60
+#define TIMED_SENSOR_READ 6
 static int sensor_read_count = TIMED_SENSOR_READ;
 
 static void setup_telnet_ipv6(struct net_if *iface)

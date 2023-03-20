@@ -31,6 +31,7 @@ struct gpio_sn74hc595_config {
 
 	struct spi_dt_spec bus;
 	struct gpio_dt_spec reset_gpio;
+	int ngpios; 
 };
 
 struct gpio_sn74hc595_drv_data {
@@ -38,7 +39,7 @@ struct gpio_sn74hc595_drv_data {
 	struct gpio_driver_data data;
 
 	struct k_mutex lock;
-	uint8_t output;
+	uint32_t output;
 };
 
 static int sn74hc595_spi_write(const struct device *dev, void *buf, size_t len_bytes)
@@ -78,9 +79,11 @@ static int gpio_sn74hc595_port_get_raw(const struct device *dev, uint32_t *value
 static int gpio_sn74hc595_port_set_masked_raw(const struct device *dev, uint32_t mask,
 					      uint32_t value)
 {
+	const struct gpio_sn74hc595_config *config = dev->config;
 	struct gpio_sn74hc595_drv_data *drv_data = dev->data;
 	int ret = 0;
-	uint8_t output;
+	uint32_t output;
+	size_t len;
 
 	k_mutex_lock(&drv_data->lock, K_FOREVER);
 
@@ -88,8 +91,9 @@ static int gpio_sn74hc595_port_set_masked_raw(const struct device *dev, uint32_t
 	/* current output differs from new masked value */
 	if ((drv_data->output & mask) != (mask & value)) {
 		output = (drv_data->output & ~mask) | (mask & value);
+		len = config->ngpios / 8;
 
-		ret = sn74hc595_spi_write(dev, &output, 1U);
+		ret = sn74hc595_spi_write(dev, &output, len);
 		if (ret < 0) {
 			goto unlock;
 		}
@@ -116,7 +120,7 @@ static int gpio_sn74hc595_port_toggle_bits(const struct device *dev, uint32_t ma
 {
 	struct gpio_sn74hc595_drv_data *drv_data = dev->data;
 	int ret;
-	uint8_t toggled_output;
+	uint32_t toggled_output;
 
 	k_mutex_lock(&drv_data->lock, K_FOREVER);
 
@@ -202,6 +206,7 @@ static int gpio_sn74hc595_init(const struct device *dev)
 		},										\
 		.bus = SPI_DT_SPEC_INST_GET(n, SN74HC595_SPI_OPERATION, 0),			\
 		.reset_gpio = GPIO_DT_SPEC_INST_GET(n, reset_gpios),				\
+		.ngpios = DT_PROP(DT_DRV_INST(n), ngpios),							\
 	};											\
 												\
 	DEVICE_DT_DEFINE(DT_DRV_INST(n), &gpio_sn74hc595_init, NULL,				\

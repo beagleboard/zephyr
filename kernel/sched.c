@@ -1721,6 +1721,8 @@ static void end_thread(struct k_thread *thread)
 		z_object_uninit(thread->stack_obj);
 		z_object_uninit(thread);
 #endif
+		if(thread->fn_abort)
+			thread->fn_abort(thread);
 	}
 }
 
