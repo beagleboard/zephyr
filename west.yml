@@ -134,7 +134,7 @@ manifest:
     - name: micropython
       remote: beagleconnect
       path: modules/micropython
-      revision: 016f048d435af50cb9179524cdc9deef2ca18fa7
+      revision: def74c6ae32d1f0b19f331efca5e66ee55528b4c
 
   self:
     path: zephyr
