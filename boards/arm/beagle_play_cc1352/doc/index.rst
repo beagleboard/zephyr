@@ -138,7 +138,7 @@ Flashing
 ========
 
 To flash, disable the existing driver that ties up the serial port and use
-the customized BSL Python script (needs home).
+the customized BSL Python script.
 
 * https://docs.beagleboard.org/latest/boards/beagleplay/demos-and-tutorials/zephyr-cc1352-development.html
 
