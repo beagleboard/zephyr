@@ -45,7 +45,7 @@ static int drv_stop_rx(const struct device *dev);
 /* User-defined CMD_PROP_RADIO_DIV_SETUP structures */
 #if defined(CONFIG_SOC_CC1352R)
 extern volatile rfc_CMD_PROP_RADIO_DIV_SETUP_t ieee802154_cc13xx_subg_radio_div_setup;
-#elif defined(CONFIG_SOC_CC1352P)
+#elif defined(CONFIG_SOC_CC1352P) || defined(CONFIG_SOC_CC1352P7)
 extern volatile rfc_CMD_PROP_RADIO_DIV_SETUP_PA_t ieee802154_cc13xx_subg_radio_div_setup;
 #endif /* CONFIG_SOC_CC1352x, extern RADIO_DIV_SETUP */
 #else
