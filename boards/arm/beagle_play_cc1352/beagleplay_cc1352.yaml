@@ -1,4 +1,4 @@
-identifier: beagleplay
+identifier: beagleplay_cc1352
 name: BeaglePlay CC1352
 type: mcu
 arch: arm

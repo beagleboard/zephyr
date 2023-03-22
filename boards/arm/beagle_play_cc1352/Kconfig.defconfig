@@ -3,9 +3,9 @@
 # Copyright (c) 2022 Jason Kridner, BeagleBoard.org Foundation
 # SPDX-License-Identifier: Apache-2.0
 
-if BOARD_BEAGLEPLAY
+if BOARD_BEAGLEPLAY_CC1352
 
 config BOARD
-	default "beagleplay"
+	default "beagleplay_cc1352"
 
-endif # BOARD_BEAGLEPLAY
+endif # BOARD_BEAGLEPLAY_CC1352

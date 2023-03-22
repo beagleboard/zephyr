@@ -137,8 +137,18 @@ Programming and Debugging
 Flashing
 ========
 
+To flash, disable the existing driver that ties up the serial port and use
+the customized BSL Python script (needs home).
+
+* https://docs.beagleboard.org/latest/boards/beagleplay/demos-and-tutorials/zephyr-cc1352-development.html
+
 Debugging
 =========
+
+For debugging, you can use the serial port or JTAG. You can use OpenOCD
+over the Tag-Connect header on the board.
+
+* https://docs.beagleboard.org/latest/accessories/cables.html#tagconnect-jtag
 
 References
 **********
