@@ -1,8 +1,8 @@
-/*
+/* SPDX-License-Identifier: Apache-2.0
+ *
  * Copyright (c) 2021 Florin Stancu
  * Copyright (c) 2021 Jason Kridner, BeagleBoard.org Foundation
  *
- * SPDX-License-Identifier: Apache-2.0
  */
 
 /*
@@ -76,16 +76,14 @@ void board_cc13xx_rf_callback(RF_Handle client, RF_GlobalEvent events, void *arg
 		case (CMD_BLE5_RADIO_SETUP):
 			loDivider = RF_LODIVIDER_MASK & setupCommand->common.loDivider;
 			/* Sub-1GHz front-end. */
-			if (loDivider != 0) {
+			if (loDivider != 0)
 				sub1GHz = true;
-			}
 			break;
 		case (CMD_PROP_RADIO_DIV_SETUP):
 			loDivider = RF_LODIVIDER_MASK & setupCommand->prop_div.loDivider;
 			/* Sub-1GHz front-end. */
-			if (loDivider != 0) {
+			if (loDivider != 0)
 				sub1GHz = true;
-			}
 			break;
 		default:
 			break;
