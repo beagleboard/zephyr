@@ -1,0 +1,28 @@
+# BeaglePlay CC1352 board configuration
+
+# Copyright (c) 2022 Jason Kridner, BeagleBoard.org Foundation
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_BEAGLEPLAY_CC1352
+
+config BOARD
+	default "beagleplay_cc1352"
+
+if SERIAL
+
+config PINCTRL
+	default y
+
+endif # SERIAL
+
+if PINCTRL
+
+config PINCTRL_DYNAMIC
+	default y
+
+config PINCTRL_CC13XX_CC26XX
+	default y
+
+endif # PINCTRL
+
+endif # BOARD_BEAGLEPLAY_CC1352
