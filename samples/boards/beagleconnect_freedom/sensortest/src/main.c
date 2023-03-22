@@ -60,21 +60,16 @@ struct led_work {
 static void sensor_work_handler(struct k_work *work);
 
 static const char *device_labels[NUM_DEVICES] = {
-	[BUTTON] = DT_PROP(DT_ALIAS(sw0), label),
+	[BUTTON] = "BUTTON",
 	[LIGHT] = "LIGHT",
 	[ACCEL] = "ACCEL",
 	[HUMIDITY] = "HUMIDITY",
 };
 
 static const char *device_names[NUM_DEVICES] = {
-	[BUTTON] = DEVICE_DT_NAME(DT_GPIO_CTLR(DT_ALIAS(sw0), gpios)),
 	[LIGHT] = "OPT3001-LIGHT",
 	[ACCEL] = "LIS2DE12-ACCEL",
 	[HUMIDITY] = "HDC2010-HUMIDITY",
-};
-
-static const uint8_t device_pins[NUM_DEVICES] = {
-	[BUTTON] = DT_GPIO_PIN(DT_ALIAS(sw0), gpios),
 };
 
 static const enum api apis[NUM_DEVICES] = {
@@ -88,7 +83,8 @@ static struct device *devices[NUM_DEVICES];
 
 static struct led_work led_work;
 K_WORK_DEFINE(sensor_work, sensor_work_handler);
-static struct gpio_callback button_callback;
+static struct gpio_callback button_callback_data;
+static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET(DT_ALIAS(sw0), gpios);
 
 static struct sockaddr_in6 addr;
 static int fd = -1;
@@ -250,17 +246,10 @@ static void button_handler(struct device *port, struct gpio_callback *cb,
 {
 	ARG_UNUSED(port);
 
-	gpio_pin_t pin = device_pins[BUTTON];
-	gpio_port_pins_t mask = BIT(pin);
-
-	if ((mask & cb->pin_mask) != 0) {
-		if ((mask & pins) != 0) {
-			/* BEL (7) triggers BEEP on MSP430 */
-			LOG_INF("%c%s event", 7, device_labels[BUTTON]);
-			/* print sensor readings */
-			k_work_submit(&sensor_work);
-		}
-	}
+	/* BEL (7) triggers BEEP on MSP430 */
+	LOG_INF("%c%s event", 7, device_labels[BUTTON]);
+	/* print sensor readings */
+	k_work_submit(&sensor_work);
 }
 
 void main(void)
@@ -284,12 +273,6 @@ void main(void)
 
 	for (size_t i = 0; i < NUM_DEVICES; ++i) {
 		LOG_INF("opening device %s", device_labels[i]);
-		devices[i] =
-			(struct device *)device_get_binding(device_names[i]);
-		if (devices[i] == NULL) {
-			LOG_ERR("failed to open device %s", device_labels[i]);
-			continue;
-		}
 
 		/* per-device setup */
 		switch (apis[i]) {
@@ -304,27 +287,23 @@ void main(void)
 			break;
 		*/
 		case BUTTON_API:
-			r = gpio_pin_configure(
-				devices[i], device_pins[i],
-				(GPIO_INPUT |
-				 DT_GPIO_FLAGS(DT_ALIAS(sw0), gpios)));
-			__ASSERT(r == 0,
-				 "gpio_pin_configure(%s, %u, %x) failed: %d",
-				 device_labels[i], device_pins[i],
-				 (GPIO_INPUT |
-				  DT_GPIO_FLAGS(DT_ALIAS(sw0), gpios)),
-				 r);
-			r = gpio_pin_interrupt_configure(
-				devices[i], device_pins[i],
-				GPIO_INT_EDGE_TO_ACTIVE);
-			__ASSERT(
-				r == 0,
-				"gpio_pin_interrupt_configure(%s, %u, %x) failed: %d",
-				device_labels[i], device_pins[i],
-				GPIO_INT_EDGE_TO_ACTIVE, r);
+			/* setup input-driven button event */
+			r = gpio_pin_configure_dt(&button, GPIO_INPUT);
+			__ASSERT(r == 0, "gpio_pin_configure_dt() failed: %d", r);
+			r = gpio_pin_interrupt_configure_dt(&button, GPIO_INT_EDGE_TO_ACTIVE);
+			__ASSERT(r == 0, "gpio_pin_interrupt_configure_dt() failed: %d", r);
+			gpio_init_callback(&button_callback_data, button_handler, BIT(button.pin));
+			r = gpio_add_callback(button.port, &button_callback_data);
+			__ASSERT(r == 0, "gpio_add_callback() failed: %d", r);
 			break;
 
 		case SENSOR_API:
+			devices[i] =
+				(struct device *)device_get_binding(device_names[i]);
+			if (devices[i] == NULL) {
+				LOG_ERR("failed to open device %s", device_labels[i]);
+				continue;
+			}
 			break;
 
 		default:
@@ -338,13 +317,6 @@ void main(void)
 	r = k_work_schedule(&led_work.dwork, K_MSEC(BLINK_MS));
 	__ASSERT(r == 0, "k_work_schedule() failed for LED %u work: %d",
 		 LED_SUBG, r);
-
-	/* setup input-driven button event */
-	gpio_init_callback(
-		&button_callback, (gpio_callback_handler_t)button_handler,
-		BIT(device_pins[BUTTON]));
-	r = gpio_add_callback(devices[BUTTON], &button_callback);
-	__ASSERT(r == 0, "gpio_add_callback() failed: %d", r);
 
 	for (;;) {
 		k_sleep(K_MSEC(1000));
