@@ -9,4 +9,61 @@ if BOARD_BEAGLECONNECT_FREEDOM
 config BOARD
 	default "beagleconnect_freedom"
 
+if I2C
+
+config I2C_TS5A2066
+	default y
+
+endif # I2C
+
+if SENSOR
+
+config OPT3001
+	default y
+
+config TI_HDC20XX
+	default y
+
+endif # SENSOR
+
+if FLASH
+
+config SPI_NOR
+	default y
+
+config FLASH_MAP
+	default y
+
+endif # FLASH
+
+if SERIAL
+
+config PINCTRL
+	default y
+
+endif # SERIAL
+
+if SPI
+
+config PINCTRL
+	default y
+
+endif # SPI
+
+if PINCTRL
+
+config PINCTRL_DYNAMIC
+	default y
+
+config PINCTRL_CC13XX_CC26XX
+	default y
+
+endif # PINCTRL
+
+if NETWORKING
+
+# TODO: put in some rational defaults for built-in networking
+
+endif # NETWORKING
+
 endif # BOARD_BEAGLECONNECT_FREEDOM
