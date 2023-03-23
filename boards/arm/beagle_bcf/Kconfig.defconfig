@@ -14,6 +14,61 @@ if I2C
 config I2C_TS5A2066
 	default y
 
+if SENSOR
+
+config OPT3001
+	default y
+
+config TI_HDC20XX
+	default y
+
+endif # SENSOR && I2C
+
 endif # I2C
+
+if FLASH
+
+config SPI
+	default y
+
+config SPI_NOR
+	default y
+
+config SPI_NORE_SFDP_RUNTIME
+	default y
+
+config FLASH_MAP
+	default y
+
+config FLASH_PAGE_LAYOUT
+	default y
+
+config FLASH_JESD216_API
+	default y
+
+endif # FLASH
+
+if SERIAL
+
+config PINCTRL
+	default y
+
+endif # SERIAL
+
+if PINCTRL
+
+config PINCTRL_DYNAMIC
+	default y
+
+config PINCTRL_CC13XX_CC26XX
+	default y
+
+endif # PINCTRL
+
+if NETWORKING
+
+# TODO: put in some rational defaults for built-in networking
+
+endif # NETWORKING
 
 endif # BOARD_BEAGLECONNECT_FREEDOM
