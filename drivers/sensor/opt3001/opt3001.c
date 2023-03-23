@@ -6,9 +6,9 @@
 
 #define DT_DRV_COMPAT ti_opt3001
 
-#include <zephyr/device.h>
-#include <zephyr/drivers/i2c.h>
 #include <zephyr/drivers/sensor.h>
+#include <zephyr/init.h>
+#include <zephyr/drivers/i2c.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/__assert.h>
 
