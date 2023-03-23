@@ -241,10 +241,12 @@ static void sensor_work_handler(struct k_work *work)
 	}
 }
 
-static void button_handler(struct device *port, struct gpio_callback *cb,
-			   gpio_port_pins_t pins)
+static void button_handler(const struct device *dev, struct gpio_callback *cb,
+			   uint32_t pins)
 {
-	ARG_UNUSED(port);
+	ARG_UNUSED(dev);
+	ARG_UNUSED(cb);
+	ARG_UNUSED(pins);
 
 	/* BEL (7) triggers BEEP on MSP430 */
 	LOG_INF("%c%s event", 7, device_labels[BUTTON]);
