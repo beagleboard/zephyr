@@ -34,7 +34,7 @@ config SPI
 config SPI_NOR
 	default y
 
-config SPI_NORE_SFDP_RUNTIME
+config SPI_NOR_SFDP_RUNTIME
 	default y
 
 config FLASH_MAP
