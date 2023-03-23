@@ -116,7 +116,7 @@ manifest:
     - name: wpanusb
       remote: beagleplay
       path: modules/wpanusb
-      revision: 19d4e8d8fa16c3e70bdd12535c53c1a3545693f0
+      revision: f747a83259f087d91af6ca8536f9316a20ef7558
     - name: micropython
       remote: beagleconnect
       path: modules/micropython
