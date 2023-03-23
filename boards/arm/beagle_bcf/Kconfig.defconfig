@@ -9,4 +9,11 @@ if BOARD_BEAGLECONNECT_FREEDOM
 config BOARD
 	default "beagleconnect_freedom"
 
+if I2C
+
+config I2C_TS5A2066
+	default y
+
+endif # I2C
+
 endif # BOARD_BEAGLECONNECT_FREEDOM
