@@ -43,6 +43,13 @@ config PINCTRL
 
 endif # SERIAL
 
+if SPI
+
+config PINCTRL
+	default y
+
+endif # SPI
+
 if PINCTRL
 
 config PINCTRL_DYNAMIC
