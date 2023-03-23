@@ -14,6 +14,8 @@ if I2C
 config I2C_TS5A2066
 	default y
 
+endif # I2C
+
 if SENSOR
 
 config OPT3001
@@ -22,9 +24,7 @@ config OPT3001
 config TI_HDC20XX
 	default y
 
-endif # SENSOR && I2C
-
-endif # I2C
+endif # SENSOR
 
 if FLASH
 
