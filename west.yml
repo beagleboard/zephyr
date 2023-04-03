@@ -120,7 +120,7 @@ manifest:
       groups:
         - tee
     - name: zcbor
-      revision: 0.6.0
+      revision: 67fd8bb88d3136738661fa8bb5f9989103f4599e
       path: modules/lib/zcbor
     - name: greybus-for-zephyr
       submodules: true
