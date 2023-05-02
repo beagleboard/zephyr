@@ -47,7 +47,6 @@ enum api {
 enum edev {
 	BUTTON,
 	LIGHT,
-	ACCEL,
 	HUMIDITY,
 	NUM_DEVICES,
 };
@@ -62,20 +61,17 @@ static void sensor_work_handler(struct k_work *work);
 static const char *device_labels[NUM_DEVICES] = {
 	[BUTTON] = "BUTTON",
 	[LIGHT] = "LIGHT",
-	[ACCEL] = "ACCEL",
 	[HUMIDITY] = "HUMIDITY",
 };
 
 static const char *device_names[NUM_DEVICES] = {
-	[LIGHT] = "OPT3001-LIGHT",
-	[ACCEL] = "LIS2DE12-ACCEL",
-	[HUMIDITY] = "HDC2010-HUMIDITY",
+	[LIGHT] = "opt3001-light@44",
+	[HUMIDITY] = "hdc2010-humidity@41",
 };
 
 static const enum api apis[NUM_DEVICES] = {
 	BUTTON_API,
 	SENSOR_API, /* LIGHT */
-	SENSOR_API, /* ACCEL */
 	SENSOR_API, /* HUMIDITY */
 };
 
@@ -210,20 +206,6 @@ static void sensor_work_handler(struct k_work *work)
 		if (i == LIGHT) {
 			sensor_channel_get(devices[i], SENSOR_CHAN_LIGHT, &val);
 			print_sensor_value(i, "l: ", &val);
-			send_sensor_value();
-			continue;
-		}
-
-		if (i == ACCEL) {
-			sensor_channel_get(devices[i], SENSOR_CHAN_ACCEL_X,
-					   &val);
-			print_sensor_value(i, "x: ", &val);
-			sensor_channel_get(devices[i], SENSOR_CHAN_ACCEL_Y,
-					   &val);
-			print_sensor_value(i, "y: ", &val);
-			sensor_channel_get(devices[i], SENSOR_CHAN_ACCEL_Z,
-					   &val);
-			print_sensor_value(i, "z: ", &val);
 			send_sensor_value();
 			continue;
 		}
