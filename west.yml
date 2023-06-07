@@ -28,6 +28,8 @@ manifest:
     - name: beagleplay
       url-base: https://git.beagleboard.org/beagleplay/cc1352
 
+  group-filter: [-babblesim]
+
   #
   # Please add items below based on alphabetical order
   projects:
@@ -47,12 +49,12 @@ manifest:
       groups:
         - fs
     - name: hal_ti
-      revision: 4e0e053f5ea413ef0cb20000729038d921ac2746
+      revision: ae1db23f32dde779cdfc4afaa9a60ea219310a64
       path: modules/hal/ti
       groups:
         - hal
     - name: libmetal
-      revision: efa2ace6028290ddee494a78ade772a0b112ab83
+      revision: b91611a6f47dd29fb24c46e5621e797557f80ec6
       path: modules/hal/libmetal
       groups:
         - hal
@@ -65,18 +67,18 @@ manifest:
         - fs
       revision: ca583fd297ceb48bced3c2548600dc615d67af24
     - name: lvgl
-      revision: 5ab83099854719ed326b6ecb9b09b07b1eee4818
+      revision: 7102083f626cda09e5792420ea60af0525cce9ae
       path: modules/lib/gui/lvgl
     - name: lz4
       revision: 8e303c264fc21c2116dc612658003a22e933124d
       path: modules/lib/lz4
     - name: mbedtls
-      revision: 6e166050075688fd3cf3d0cb3fc34a1c52df2496
+      revision: 6e7841e5a08eb5da3c82dbc8b6b6d82ae4b7d2a0
       path: modules/crypto/mbedtls
       groups:
         - crypto
     - name: mcuboot
-      revision: 59624334748129cb93f096408911a227b0dd64c0
+      revision: 74c4d1c52fd51d07904b27a7aa9b2303e896a4e3
       path: bootloader/mcuboot
     - name: net-tools
       revision: e0828aa9629b533644dc96ff6d1295c939bd713c
@@ -84,21 +86,21 @@ manifest:
       groups:
         - tools
     - name: open-amp
-      revision: aedcc262f93bbb1b0c2f58026911575729b7465c
+      revision: c904a01d4a882bcbb39987e0e2ce5308f49ac7ad
       path: modules/lib/open-amp
     - name: openthread
-      revision: 1f1a826d1891fc99d14822abc0a1de257e9c6e9b
+      revision: d9abe3071c0131a4adb5d7e7451319b735e6d855
       path: modules/lib/openthread
     - name: picolibc
       path: modules/lib/picolibc
-      revision: 0694a78fc08b3300c7db79602c46ba0a64428c8e
+      revision: d07c38ff051386f8e09a143ea0a6c1d6d66dd1d8
     - name: segger
-      revision: e2ff2200556e8a8f962921444275c04971a2bb3d
+      revision: 4bfaf28a11c3e5ec29badac744fab6d2f342749e
       path: modules/debug/segger
       groups:
         - debug
     - name: sof
-      revision: 6f5f7258ad2738df78e600568d38fc261e2a118d
+      revision: ffbf9c2a6ea2930b0ac7e3a37c7cd7f5c417d090
       path: modules/audio/sof
     - name: tflite-micro
       revision: 9156d050927012da87079064db59d07f03b8baf6
@@ -110,17 +112,17 @@ manifest:
       groups:
         - crypto
     - name: TraceRecorderSource
-      revision: d92607521335eaaaedb01b241cdd26fda48a5ca6
+      revision: bc839bf94904bcdb91b33760e918afbef82e3ab4
       path: modules/debug/TraceRecorder
       groups:
         - debug
     - name: trusted-firmware-m
-      revision: 13abde213930ffdf600cf8f01113da8a5fdd9d9c
+      revision: 79a6115d3a8d0e04864ae8156c1dc8532b750f5a
       path: modules/tee/tf-m/trusted-firmware-m
       groups:
         - tee
     - name: zcbor
-      revision: 0.6.0
+      revision: 67fd8bb88d3136738661fa8bb5f9989103f4599e
       path: modules/lib/zcbor
     - name: greybus-for-zephyr
       submodules: true

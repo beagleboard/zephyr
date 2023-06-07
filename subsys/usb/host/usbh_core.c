@@ -9,7 +9,7 @@
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/devicetree.h>
 #include "usbh_internal.h"
-
+#include <zephyr/sys/iterable_sections.h>
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(uhs, CONFIG_USBH_LOG_LEVEL);
 
@@ -144,7 +144,7 @@ int usbh_init_device_intl(struct usbh_contex *const uhs_ctx)
 	return 0;
 }
 
-static int uhs_pre_init(const struct device *unused)
+static int uhs_pre_init(void)
 {
 	k_thread_create(&usbh_thread_data, usbh_stack,
 			K_KERNEL_STACK_SIZEOF(usbh_stack),

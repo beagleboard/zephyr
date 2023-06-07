@@ -556,7 +556,9 @@ static void qspi_dma_callback(const struct device *dev, void *arg,
 {
 	DMA_HandleTypeDef *hdma = arg;
 
-	if (status != 0) {
+	ARG_UNUSED(dev);
+
+	if (status < 0) {
 		LOG_ERR("DMA callback error with channel %d.", channel);
 
 	}
@@ -717,8 +719,22 @@ static int setup_pages_layout(const struct device *dev)
 }
 #endif /* CONFIG_FLASH_PAGE_LAYOUT */
 
-static int qspi_program_addr_4b(const struct device *dev)
+static int qspi_program_addr_4b(const struct device *dev, bool write_enable)
 {
+	int ret;
+
+	/* Send write enable command, if required */
+	if (write_enable) {
+		QSPI_CommandTypeDef cmd_write_en = {
+			.Instruction = SPI_NOR_CMD_WREN,
+			.InstructionMode = QSPI_INSTRUCTION_1_LINE,
+		};
+		ret = qspi_send_cmd(dev, &cmd_write_en);
+		if (ret != 0) {
+			return ret;
+		}
+	}
+
 	/* Program the flash memory to use 4 bytes addressing */
 	QSPI_CommandTypeDef cmd = {
 		.Instruction = SPI_NOR_CMD_4BA,
@@ -956,9 +972,10 @@ static int spi_nor_process_bfp(const struct device *dev,
 			 * portion of flash description register 16 indicates
 			 * if it is enough to use 0xB7 instruction without
 			 * write enable to switch to 4 bytes addressing mode.
+			 * If bit 1 is set, a write enable is needed.
 			 */
-			if (dw16.enter_4ba & 0x1) {
-				rc = qspi_program_addr_4b(dev);
+			if (dw16.enter_4ba & 0x3) {
+				rc = qspi_program_addr_4b(dev, dw16.enter_4ba & 2);
 				if (rc == 0) {
 					data->flag_access_32bit = true;
 					LOG_INF("Flash - address mode: 4B");
@@ -1140,10 +1157,9 @@ static int flash_stm32_qspi_init(const struct device *dev)
 #else
 	hdma.Init.Request = dma_cfg.dma_slot;
 #ifdef CONFIG_DMAMUX_STM32
-	/* HAL expects a valid DMA channel (not DAMMUX) */
-	/* TODO: Get DMA instance from DT */
-	hdma.Instance = __LL_DMA_GET_CHANNEL_INSTANCE(DMA1,
-						      dev_data->dma.channel+1);
+	/* HAL expects a valid DMA channel (not a DMAMUX channel) */
+	hdma.Instance = __LL_DMA_GET_CHANNEL_INSTANCE(dev_data->dma.reg,
+						      dev_data->dma.channel);
 #else
 	hdma.Instance = __LL_DMA_GET_CHANNEL_INSTANCE(dev_data->dma.reg,
 						      dev_data->dma.channel-1);

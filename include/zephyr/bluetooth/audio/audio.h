@@ -11,6 +11,13 @@
 #ifndef ZEPHYR_INCLUDE_BLUETOOTH_AUDIO_AUDIO_H_
 #define ZEPHYR_INCLUDE_BLUETOOTH_AUDIO_AUDIO_H_
 
+/**
+ * @brief Bluetooth Audio
+ * @defgroup bt_audio Bluetooth Audio
+ * @ingroup bluetooth
+ * @{
+ */
+
 #include <zephyr/sys/atomic.h>
 #include <zephyr/bluetooth/buf.h>
 #include <zephyr/bluetooth/conn.h>
@@ -19,12 +26,6 @@
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/bluetooth/audio/lc3.h>
 
-/**
- * @brief Bluetooth Audio
- * @defgroup bt_audio Bluetooth Audio
- * @ingroup bluetooth
- * @{
- */
 
 #ifdef __cplusplus
 extern "C" {
@@ -179,9 +180,7 @@ enum bt_audio_metadata_type {
 /** @brief Codec configuration structure */
 struct bt_codec_data {
 	struct bt_data data;
-#if defined(CONFIG_BT_CODEC_MAX_DATA_LEN)
-	uint8_t  value[CONFIG_BT_CODEC_MAX_DATA_LEN];
-#endif /* CONFIG_BT_CODEC_MAX_DATA_LEN */
+	uint8_t value[CONFIG_BT_CODEC_MAX_DATA_LEN];
 };
 
 /**
@@ -400,8 +399,14 @@ struct bt_codec_qos {
 	/** QoS SDU */
 	uint16_t sdu;
 
-	/** QoS Transport Latency */
+#if defined(CONFIG_BT_BAP_BROADCAST_SOURCE) || defined(CONFIG_BT_BAP_UNICAST)
+	/**
+	 * @brief QoS Transport Latency
+	 *
+	 * Not used for the @kconfig{CONFIG_BT_BAP_BROADCAST_SINK} role.
+	 */
 	uint16_t latency;
+#endif /*  CONFIG_BT_BAP_BROADCAST_SOURCE || CONFIG_BT_BAP_UNICAST */
 
 	/** QoS Frame Interval */
 	uint32_t interval;
@@ -489,6 +494,22 @@ struct bt_codec_qos_pref {
 	uint32_t pref_pd_max;
 };
 
+/** @brief Turns an array of bt_codec_data to a flat LTV encoded uint8_t array
+ *
+ *  The resulting @p buf array can then be used to send over air.
+ *
+ * @param codec_data The codec data. Can either be codec configuration data,
+ *                   or codec metadata.
+ * @param count      The number of elements in the @p codec_data array
+ * @param buf        The resulting buffer to put the LTV encoded data.
+ * @param buf_size   The size of @p buf.
+ *
+ * @retval The length of the encoded data if successful.
+ * @retval -ENOMEM if the @p codec_data did not fit into the @p buf.
+ */
+ssize_t bt_audio_codec_data_to_buf(const struct bt_codec_data *codec_data, size_t count,
+				   uint8_t *buf, size_t buf_size);
+
 /**
  * @brief Audio codec Config APIs
  * @defgroup bt_audio_codec_cfg Codec config parsing APIs
@@ -548,7 +569,8 @@ int bt_codec_cfg_get_frame_duration_us(const struct bt_codec *codec);
  *  @return BT_AUDIO_CODEC_PARSE_SUCCESS if value is found and stored in the pointer provided
  *          else a negative value of type @ref bt_audio_codec_parse_err.
  */
-int bt_codec_cfg_get_chan_allocation_val(const struct bt_codec *codec, uint32_t *chan_allocation);
+int bt_codec_cfg_get_chan_allocation_val(const struct bt_codec *codec,
+					 enum bt_audio_location *chan_allocation);
 
 /** @brief Extract frame size in octets from BT codec config
  *

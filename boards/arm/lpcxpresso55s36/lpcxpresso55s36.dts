@@ -134,6 +134,12 @@
 	};
 };
 
+&adc0 {
+	status = "okay";
+	pinctrl-0 = <&pinmux_lpadc0>;
+	pinctrl-names = "default";
+};
+
 &flash0 {
 	partitions {
 		compatible = "fixed-partitions";
@@ -154,5 +160,11 @@
 &flexpwm1_pwm0 {
 	status = "okay";
 	pinctrl-0 = <&pinmux_flexpwm1_pwm0>;
+	pinctrl-names = "default";
+};
+
+zephyr_udc0: &usbfs {
+	status = "okay";
+	pinctrl-0 = <&pinmux_usbfs>;
 	pinctrl-names = "default";
 };

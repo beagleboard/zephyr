@@ -19,7 +19,6 @@
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/bap.h>
 
-#include "../host/conn_internal.h"
 #include "../host/iso_internal.h"
 
 #include "bap_iso.h"
@@ -97,11 +96,11 @@ void bt_bap_stream_init(struct bt_bap_stream *stream)
 void bt_bap_stream_attach(struct bt_conn *conn, struct bt_bap_stream *stream, struct bt_bap_ep *ep,
 			  struct bt_codec *codec)
 {
-	LOG_DBG("conn %p stream %p ep %p codec %p", conn, stream, ep, codec);
+	LOG_DBG("conn %p stream %p ep %p codec %p", (void *)conn, stream, ep, codec);
 
 	if (conn != NULL) {
 		__ASSERT(stream->conn == NULL || stream->conn == conn,
-			 "stream->conn %p already attached", stream->conn);
+			 "stream->conn %p already attached", (void *)stream->conn);
 		if (stream->conn == NULL) {
 			stream->conn = bt_conn_ref(conn);
 		}
@@ -132,10 +131,15 @@ int bt_bap_ep_get_info(const struct bt_bap_ep *ep, struct bt_bap_ep_info *info)
 	info->state = ep->status.state;
 	info->dir = ep->dir;
 
+	if (ep->iso == NULL) {
+		info->paired_ep = NULL;
+	} else {
+		info->paired_ep = bt_bap_iso_get_paired_ep(ep);
+	}
+
 	return 0;
 }
 
-#if defined(CONFIG_BT_BAP_UNICAST) || defined(CONFIG_BT_BAP_BROADCAST_SOURCE)
 enum bt_bap_ascs_reason bt_audio_verify_qos(const struct bt_codec_qos *qos)
 {
 	if (qos->interval < BT_ISO_SDU_INTERVAL_MIN ||
@@ -162,15 +166,73 @@ enum bt_bap_ascs_reason bt_audio_verify_qos(const struct bt_codec_qos *qos)
 		return BT_BAP_ASCS_REASON_SDU;
 	}
 
+#if defined(CONFIG_BT_BAP_BROADCAST_SOURCE) || defined(CONFIG_BT_BAP_UNICAST)
 	if (qos->latency < BT_ISO_LATENCY_MIN ||
 	    qos->latency > BT_ISO_LATENCY_MAX) {
 		LOG_DBG("Invalid Latency %u", qos->latency);
 		return BT_BAP_ASCS_REASON_LATENCY;
 	}
+#endif /* CONFIG_BT_BAP_BROADCAST_SOURCE || CONFIG_BT_BAP_UNICAST */
+
+	if (qos->pd > BT_AUDIO_PD_MAX) {
+		LOG_DBG("Invalid presentation delay %u", qos->pd);
+		return BT_BAP_ASCS_REASON_PD;
+	}
 
 	return BT_BAP_ASCS_REASON_NONE;
 }
 
+bool bt_audio_valid_codec_data(const struct bt_codec_data *data)
+{
+	if (data->data.data_len > ARRAY_SIZE(data->value)) {
+		LOG_DBG("data invalid length: %zu/%zu", data->data.data_len,
+			ARRAY_SIZE(data->value));
+		return false;
+	}
+
+	return true;
+}
+
+bool bt_audio_valid_codec(const struct bt_codec *codec)
+{
+	if (codec == NULL) {
+		LOG_DBG("codec is NULL");
+		return false;
+	}
+
+#if CONFIG_BT_CODEC_MAX_DATA_COUNT > 0
+	if (codec->data_count > CONFIG_BT_CODEC_MAX_DATA_COUNT) {
+		LOG_DBG("codec->data_count (%zu) is invalid", codec->data_count);
+		return false;
+	}
+
+	for (size_t i = 0U; i < codec->data_count; i++) {
+		if (!bt_audio_valid_codec_data(&codec->data[i])) {
+			LOG_DBG("codec->data[%zu] invalid", i);
+			return false;
+		}
+	}
+#endif /* CONFIG_BT_CODEC_MAX_DATA_COUNT > 0 */
+
+#if CONFIG_BT_CODEC_MAX_METADATA_COUNT > 0
+	if (codec->meta_count > CONFIG_BT_CODEC_MAX_METADATA_COUNT) {
+		LOG_DBG("codec->meta_count (%zu) is invalid", codec->meta_count);
+		return false;
+	}
+
+	for (size_t i = 0U; i < codec->meta_count; i++) {
+		LOG_ERR("META %zu", i);
+		if (!bt_audio_valid_codec_data(&codec->meta[i])) {
+			LOG_DBG("codec->meta[%zu] invalid", i);
+			return false;
+		}
+	}
+#endif /* CONFIG_BT_CODEC_MAX_METADATA_COUNT > 0 */
+
+	return true;
+}
+
+#if defined(CONFIG_BT_AUDIO_TX)
 int bt_bap_stream_send(struct bt_bap_stream *stream, struct net_buf *buf,
 			 uint16_t seq_num, uint32_t ts)
 {
@@ -193,7 +255,7 @@ int bt_bap_stream_send(struct bt_bap_stream *stream, struct net_buf *buf,
 	return bt_iso_chan_send(bt_bap_stream_iso_chan_get(stream),
 				buf, seq_num, ts);
 }
-#endif /* CONFIG_BT_BAP_UNICAST || CONFIG_BT_BAP_BROADCAST_SOURCE */
+#endif /* CONFIG_BT_AUDIO_TX */
 
 #if defined(CONFIG_BT_BAP_UNICAST)
 static bool bt_bap_stream_is_broadcast(const struct bt_bap_stream *stream)
@@ -273,6 +335,17 @@ void bt_bap_stream_reset(struct bt_bap_stream *stream)
 	bt_bap_stream_detach(stream);
 }
 
+static uint8_t conn_get_role(const struct bt_conn *conn)
+{
+	struct bt_conn_info info;
+	int err;
+
+	err = bt_conn_get_info(conn, &info);
+	__ASSERT(err == 0, "Failed to get conn info");
+
+	return info.role;
+}
+
 #if defined(CONFIG_BT_BAP_UNICAST_CLIENT)
 
 int bt_bap_stream_config(struct bt_conn *conn, struct bt_bap_stream *stream, struct bt_bap_ep *ep,
@@ -282,7 +355,7 @@ int bt_bap_stream_config(struct bt_conn *conn, struct bt_bap_stream *stream, str
 	int err;
 
 	LOG_DBG("conn %p stream %p, ep %p codec %p codec id 0x%02x "
-	       "codec cid 0x%04x codec vid 0x%04x", conn, stream, ep,
+	       "codec cid 0x%04x codec vid 0x%04x", (void *)conn, stream, ep,
 	       codec, codec ? codec->id : 0, codec ? codec->cid : 0,
 	       codec ? codec->vid : 0);
 
@@ -292,11 +365,11 @@ int bt_bap_stream_config(struct bt_conn *conn, struct bt_bap_stream *stream, str
 	}
 
 	if (stream->conn != NULL) {
-		LOG_DBG("Stream already configured for conn %p", stream->conn);
+		LOG_DBG("Stream already configured for conn %p", (void *)stream->conn);
 		return -EALREADY;
 	}
 
-	role = conn->role;
+	role = conn_get_role(conn);
 	if (role != BT_HCI_ROLE_CENTRAL) {
 		LOG_DBG("Invalid conn role: %u, shall be central", role);
 		return -EINVAL;
@@ -331,7 +404,7 @@ int bt_bap_stream_qos(struct bt_conn *conn, struct bt_bap_unicast_group *group)
 	uint8_t role;
 	int err;
 
-	LOG_DBG("conn %p group %p", conn, group);
+	LOG_DBG("conn %p group %p", (void *)conn, group);
 
 	CHECKIF(conn == NULL) {
 		LOG_DBG("conn is NULL");
@@ -348,7 +421,7 @@ int bt_bap_stream_qos(struct bt_conn *conn, struct bt_bap_unicast_group *group)
 		return -ENOEXEC;
 	}
 
-	role = conn->role;
+	role = conn_get_role(conn);
 	if (role != BT_HCI_ROLE_CENTRAL) {
 		LOG_DBG("Invalid conn role: %u, shall be central", role);
 		return -EINVAL;
@@ -377,7 +450,7 @@ int bt_bap_stream_enable(struct bt_bap_stream *stream,
 		return -EINVAL;
 	}
 
-	role = stream->conn->role;
+	role = conn_get_role(stream->conn);
 	if (role != BT_HCI_ROLE_CENTRAL) {
 		LOG_DBG("Invalid conn role: %u, shall be central", role);
 		return -EINVAL;
@@ -409,7 +482,7 @@ int bt_bap_stream_stop(struct bt_bap_stream *stream)
 		return -EINVAL;
 	}
 
-	role = stream->conn->role;
+	role = conn_get_role(stream->conn);
 	if (role != BT_HCI_ROLE_CENTRAL) {
 		LOG_DBG("Invalid conn role: %u, shall be central", role);
 		return -EINVAL;
@@ -469,7 +542,7 @@ int bt_bap_stream_reconfig(struct bt_bap_stream *stream,
 		return -EBADMSG;
 	}
 
-	role = stream->conn->role;
+	role = conn_get_role(stream->conn);
 	if (IS_ENABLED(CONFIG_BT_BAP_UNICAST_CLIENT) && role == BT_HCI_ROLE_CENTRAL) {
 		err = bt_bap_unicast_client_config(stream, codec);
 	} else if (IS_ENABLED(CONFIG_BT_BAP_UNICAST_SERVER) && role == BT_HCI_ROLE_PERIPHERAL) {
@@ -510,7 +583,7 @@ int bt_bap_stream_start(struct bt_bap_stream *stream)
 		return -EBADMSG;
 	}
 
-	role = stream->conn->role;
+	role = conn_get_role(stream->conn);
 	if (IS_ENABLED(CONFIG_BT_BAP_UNICAST_CLIENT) && role == BT_HCI_ROLE_CENTRAL) {
 		err = bt_bap_unicast_client_start(stream);
 	} else if (IS_ENABLED(CONFIG_BT_BAP_UNICAST_SERVER) && role == BT_HCI_ROLE_PERIPHERAL) {
@@ -560,7 +633,7 @@ int bt_bap_stream_metadata(struct bt_bap_stream *stream,
 		return -EBADMSG;
 	}
 
-	role = stream->conn->role;
+	role = conn_get_role(stream->conn);
 	if (IS_ENABLED(CONFIG_BT_BAP_UNICAST_CLIENT) && role == BT_HCI_ROLE_CENTRAL) {
 		err = bt_bap_unicast_client_metadata(stream, meta, meta_count);
 	} else if (IS_ENABLED(CONFIG_BT_BAP_UNICAST_SERVER) && role == BT_HCI_ROLE_PERIPHERAL) {
@@ -602,7 +675,7 @@ int bt_bap_stream_disable(struct bt_bap_stream *stream)
 		return -EBADMSG;
 	}
 
-	role = stream->conn->role;
+	role = conn_get_role(stream->conn);
 	if (IS_ENABLED(CONFIG_BT_BAP_UNICAST_CLIENT) && role == BT_HCI_ROLE_CENTRAL) {
 		err = bt_bap_unicast_client_disable(stream);
 	} else if (IS_ENABLED(CONFIG_BT_BAP_UNICAST_SERVER) && role == BT_HCI_ROLE_PERIPHERAL) {
@@ -650,7 +723,7 @@ int bt_bap_stream_release(struct bt_bap_stream *stream)
 		return -EBADMSG;
 	}
 
-	role = stream->conn->role;
+	role = conn_get_role(stream->conn);
 	if (IS_ENABLED(CONFIG_BT_BAP_UNICAST_CLIENT) && role == BT_HCI_ROLE_CENTRAL) {
 		err = bt_bap_unicast_client_release(stream);
 	} else if (IS_ENABLED(CONFIG_BT_BAP_UNICAST_SERVER) && role == BT_HCI_ROLE_PERIPHERAL) {

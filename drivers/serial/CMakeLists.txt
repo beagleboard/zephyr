@@ -36,6 +36,7 @@ zephyr_library_sources_ifdef(CONFIG_UART_PL011 uart_pl011.c)
 zephyr_library_sources_ifdef(CONFIG_UART_QUICKLOGIC_USBSERIALPORT_S3B uart_ql_usbserialport_s3b.c)
 zephyr_library_sources_ifdef(CONFIG_UART_RV32M1_LPUART uart_rv32m1_lpuart.c)
 zephyr_library_sources_ifdef(CONFIG_UART_RPI_PICO uart_rpi_pico.c)
+zephyr_library_sources_ifdef(CONFIG_UART_RPI_PICO_PIO uart_rpi_pico_pio.c)
 zephyr_library_sources_ifdef(CONFIG_UART_LITEUART uart_liteuart.c)
 zephyr_library_sources_ifdef(CONFIG_UART_RTT_DRIVER uart_rtt.c)
 zephyr_library_sources_ifdef(CONFIG_UART_XLNX_PS uart_xlnx_ps.c)
@@ -57,6 +58,7 @@ zephyr_library_sources_ifdef(CONFIG_UART_NXP_S32_LINFLEXD uart_nxp_s32_linflexd.
 zephyr_library_sources_ifdef(CONFIG_UART_CDNS uart_cdns.c)
 zephyr_library_sources_ifdef(CONFIG_UART_OPENTITAN uart_opentitan.c)
 zephyr_library_sources_ifdef(CONFIG_UART_HOSTLINK uart_hostlink.c)
+zephyr_library_sources_ifdef(CONFIG_UART_EMUL uart_emul.c)
 
 zephyr_library_sources_ifdef(CONFIG_USERSPACE   uart_handlers.c)
 

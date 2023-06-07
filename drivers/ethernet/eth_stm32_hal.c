@@ -1142,14 +1142,14 @@ static int eth_initialize(const struct device *dev)
 
 	/* enable clock */
 	ret = clock_control_on(dev_data->clock,
-		(clock_control_subsys_t *)&cfg->pclken);
+		(clock_control_subsys_t)&cfg->pclken);
 	ret |= clock_control_on(dev_data->clock,
-		(clock_control_subsys_t *)&cfg->pclken_tx);
+		(clock_control_subsys_t)&cfg->pclken_tx);
 	ret |= clock_control_on(dev_data->clock,
-		(clock_control_subsys_t *)&cfg->pclken_rx);
+		(clock_control_subsys_t)&cfg->pclken_rx);
 #if DT_INST_CLOCKS_HAS_NAME(0, mac_clk_ptp)
 	ret |= clock_control_on(dev_data->clock,
-		(clock_control_subsys_t *)&cfg->pclken_ptp);
+		(clock_control_subsys_t)&cfg->pclken_ptp);
 #endif
 
 	if (ret) {
@@ -1203,7 +1203,8 @@ static int eth_initialize(const struct device *dev)
 	memset(&tx_config, 0, sizeof(ETH_TxPacketConfig));
 	tx_config.Attributes = ETH_TX_PACKETS_FEATURES_CSUM |
 				ETH_TX_PACKETS_FEATURES_CRCPAD;
-	tx_config.ChecksumCtrl = ETH_CHECKSUM_IPHDR_PAYLOAD_INSERT_PHDR_CALC;
+	tx_config.ChecksumCtrl = IS_ENABLED(CONFIG_ETH_STM32_HW_CHECKSUM) ?
+			ETH_CHECKSUM_IPHDR_PAYLOAD_INSERT_PHDR_CALC : ETH_CHECKSUM_DISABLE;
 	tx_config.CRCPadCtrl = ETH_CRC_PAD_INSERT;
 #endif /* CONFIG_SOC_SERIES_STM32H7X || CONFIG_ETH_STM32_HAL_API_V2 */
 
@@ -1216,15 +1217,6 @@ static int eth_initialize(const struct device *dev)
 	k_sem_init(&dev_data->tx_int_sem, 0, K_SEM_MAX_LIMIT);
 #endif /* CONFIG_SOC_SERIES_STM32H7X || CONFIG_ETH_STM32_HAL_API_V2 */
 
-	/* Start interruption-poll thread */
-	k_thread_create(&dev_data->rx_thread, dev_data->rx_thread_stack,
-			K_KERNEL_STACK_SIZEOF(dev_data->rx_thread_stack),
-			rx_thread, (void *) dev, NULL, NULL,
-			K_PRIO_COOP(CONFIG_ETH_STM32_HAL_RX_THREAD_PRIO),
-			0, K_NO_WAIT);
-
-	k_thread_name_set(&dev_data->rx_thread, "stm_eth");
-
 #if defined(CONFIG_SOC_SERIES_STM32H7X) || defined(CONFIG_ETH_STM32_HAL_API_V2)
 	/* Adjust MDC clock range depending on HCLK frequency: */
 	HAL_ETH_SetMDIOClockRange(heth);
@@ -1234,8 +1226,10 @@ static int eth_initialize(const struct device *dev)
 	ETH_MACConfigTypeDef mac_config;
 
 	HAL_ETH_GetMACConfig(heth, &mac_config);
-	mac_config.DuplexMode = ETH_FULLDUPLEX_MODE;
-	mac_config.Speed = ETH_SPEED_100M;
+	mac_config.DuplexMode = IS_ENABLED(CONFIG_ETH_STM32_MODE_HALFDUPLEX) ?
+				      ETH_HALFDUPLEX_MODE : ETH_FULLDUPLEX_MODE;
+	mac_config.Speed = IS_ENABLED(CONFIG_ETH_STM32_SPEED_10M) ?
+				 ETH_SPEED_10M : ETH_SPEED_100M;
 	hal_ret = HAL_ETH_SetMACConfig(heth, &mac_config);
 	if (hal_ret != HAL_OK) {
 		LOG_ERR("HAL_ETH_SetMACConfig: failed: %d", hal_ret);
@@ -1308,7 +1302,7 @@ static void remove_ipv6_multicast_addr(const struct in6_addr *addr)
 	uint32_t i;
 
 	for (i = 0; i < NET_IF_MAX_IPV6_MADDR; i++) {
-		if (net_ipv6_addr_cmp_raw(&multicast_ipv6_joined_addrs[i], addr)) {
+		if (net_ipv6_addr_cmp(&multicast_ipv6_joined_addrs[i], addr)) {
 			net_ipv6_addr_copy_raw((uint8_t *)&multicast_ipv6_joined_addrs[i],
 					(uint8_t *)net_ipv6_unspecified_address);
 			break;
@@ -1336,8 +1330,7 @@ static void remove_ipv4_multicast_addr(const struct in_addr *addr)
 	uint32_t i;
 
 	for (i = 0; i < NET_IF_MAX_IPV4_MADDR; i++) {
-		if (net_ipv4_addr_cmp_raw((uint8_t *)&multicast_ipv4_joined_addrs[i],
-					(uint8_t *)addr)) {
+		if (net_ipv4_addr_cmp(&multicast_ipv4_joined_addrs[i], addr)) {
 			multicast_ipv4_joined_addrs[i].s_addr = 0;
 			break;
 		}
@@ -1351,8 +1344,8 @@ static uint32_t reverse(uint32_t val)
 	int i;
 
 	for (i = 0; i < 32; i++) {
-		if (val & (1 << i)) {
-			res |= 1 << (31 - i);
+		if (val & BIT(i)) {
+			res |= BIT(31 - i);
 		}
 	}
 
@@ -1520,6 +1513,15 @@ static void eth_iface_init(struct net_if *iface)
 		/* Now that the iface is setup, we are safe to enable IRQs. */
 		__ASSERT_NO_MSG(cfg->config_func != NULL);
 		cfg->config_func();
+
+		/* Start interruption-poll thread */
+		k_thread_create(&dev_data->rx_thread, dev_data->rx_thread_stack,
+				K_KERNEL_STACK_SIZEOF(dev_data->rx_thread_stack),
+				rx_thread, (void *) dev, NULL, NULL,
+				K_PRIO_COOP(CONFIG_ETH_STM32_HAL_RX_THREAD_PRIO),
+				0, K_NO_WAIT);
+
+		k_thread_name_set(&dev_data->rx_thread, "stm_eth");
 	}
 }
 
@@ -1889,9 +1891,9 @@ static int ptp_stm32_init(const struct device *port)
 	/* Query ethernet clock rate */
 	ret = clock_control_get_rate(eth_dev_data->clock,
 #if defined(CONFIG_SOC_SERIES_STM32H7X)
-		(clock_control_subsys_t *)&eth_cfg->pclken,
+		(clock_control_subsys_t)&eth_cfg->pclken,
 #else
-		(clock_control_subsys_t *)&eth_cfg->pclken_ptp,
+		(clock_control_subsys_t)&eth_cfg->pclken_ptp,
 #endif /* CONFIG_SOC_SERIES_STM32H7X */
 		&ptp_hclk_rate);
 	if (ret) {

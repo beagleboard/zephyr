@@ -35,6 +35,7 @@ extern "C" {
 
 /**
  * @defgroup sys-util Utility Functions
+ * @ingroup utilities
  * @{
  */
 
@@ -245,10 +246,27 @@ extern "C" {
 #define WB_DN(x) ROUND_DOWN(x, sizeof(void *))
 
 /**
- * @brief Ceiling function applied to @p numerator / @p divider as a fraction.
+ * @brief Divide and round up.
+ *
+ * Example:
+ * @code{.c}
+ * DIV_ROUND_UP(1, 2); // 1
+ * DIV_ROUND_UP(3, 2); // 2
+ * @endcode
+ *
+ * @param n Numerator.
+ * @param d Denominator.
+ *
+ * @return The result of @p n / @p d, rounded up.
  */
-#define ceiling_fraction(numerator, divider) \
-	(((numerator) + ((divider) - 1)) / (divider))
+#define DIV_ROUND_UP(n, d) (((n) + (d) - 1) / (d))
+
+/**
+ * @brief Ceiling function applied to @p numerator / @p divider as a fraction.
+ * @deprecated Use DIV_ROUND_UP() instead.
+ */
+#define ceiling_fraction(numerator, divider) __DEPRECATED_MACRO \
+	DIV_ROUND_UP(numerator, divider)
 
 #ifndef MAX
 /**
@@ -521,9 +539,7 @@ char *utf8_lcpy(char *dst, const char *src, size_t n);
  * @note This macro expands its argument multiple times (to permit use
  *       in constant expressions), which must not have side effects.
  *
- * @param x An unsigned integral value
- *
- * @param x value to compute logarithm of (positive only)
+ * @param x An unsigned integral value to compute logarithm of (positive only)
  *
  * @return log2(x) when 1 <= x <= max(x), -1 when x < 1
  */
@@ -558,6 +574,11 @@ char *utf8_lcpy(char *dst, const char *src, size_t n);
 #ifdef __cplusplus
 }
 #endif
+
+/* This file must be included at the end of the !_ASMLANGUAGE guard.
+ * It depends on macros defined in this file above which cannot be forward declared.
+ */
+#include <zephyr/sys/time_units.h>
 
 #endif /* !_ASMLANGUAGE */
 

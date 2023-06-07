@@ -2,7 +2,7 @@
  * Copyright (c) 2022 Intel Corporation
  *
  * Intel I/O Controller Hub (ICH) later renamed to Intel Platform Controller
- * Hub (PCH) SMbus driver.
+ * Hub (PCH) SMBus driver.
  *
  * PCH provides SMBus 2.0 - compliant Host Controller.
  *
@@ -21,7 +21,7 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(intel_pch, CONFIG_SMBUS_LOG_LEVEL);
 
-#include <zephyr/drivers/smbus_utils.h>
+#include "smbus_utils.h"
 #include "intel_pch_smbus.h"
 
 /**

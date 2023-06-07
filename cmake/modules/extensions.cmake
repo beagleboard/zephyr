@@ -30,6 +30,7 @@ include(CheckCXXCompilerFlag)
 # 4. Devicetree extensions
 # 4.1 dt_*
 # 4.2. *_if_dt_node
+# 4.3  zephyr_dt_*
 # 5. Zephyr linker functions
 # 5.1. zephyr_linker*
 # 6 Function helper macros
@@ -109,6 +110,10 @@ endfunction()
 # https://cmake.org/cmake/help/latest/command/target_link_libraries.html
 function(zephyr_link_libraries)
   target_link_libraries(zephyr_interface INTERFACE ${ARGV})
+endfunction()
+
+function(zephyr_libc_link_libraries)
+  set_property(TARGET zephyr_interface APPEND PROPERTY LIBC_LINK_LIBRARIES ${ARGV})
 endfunction()
 
 # See this file section 3.1. target_cc_option
@@ -2411,10 +2416,95 @@ function(zephyr_string)
 endfunction()
 
 # Usage:
-#   zephyr_get(<variable>)
-#   zephyr_get(<variable> SYSBUILD [LOCAL|GLOBAL])
+#    zephyr_list(TRANSFORM <list> <ACTION>
+#                [OUTPUT_VARIABLE <output variable])
 #
-# Return the value of <variable> as local scoped variable of same name.
+# Example:
+#
+#    zephyr_list(TRANSFORM my_input_var NORMALIZE_PATHS
+#                OUTPUT_VARIABLE my_input_as_list)
+#
+# Like CMake's list(TRANSFORM ...). This is intended as a placeholder
+# for storing current and future Zephyr-related extensions for list
+# processing.
+#
+# <ACTION>: This currently must be NORMALIZE_PATHS. This action
+#           converts the argument list <list> to a ;-list with
+#           CMake path names, after passing its contents through
+#           a configure_file() transformation. The input list
+#           may be whitespace- or semicolon-separated.
+#
+# OUTPUT_VARIABLE: the result is normally stored in place, but
+#                  an alternative variable to store the result
+#                  can be provided with this.
+function(zephyr_list transform list_var action)
+  # Parse arguments.
+  if(NOT "${transform}" STREQUAL "TRANSFORM")
+    message(FATAL_ERROR "the first argument must be TRANSFORM")
+  endif()
+  if(NOT "${action}" STREQUAL "NORMALIZE_PATHS")
+    message(FATAL_ERROR "the third argument must be NORMALIZE_PATHS")
+  endif()
+  set(single_args OUTPUT_VARIABLE)
+  cmake_parse_arguments(ZEPHYR_LIST "" "${single_args}" "" ${ARGN})
+  if(DEFINED ZEPHYR_LIST_OUTPUT_VARIABLE)
+    set(out_var ${ZEPHYR_LIST_OUTPUT_VARIABLE})
+  else()
+    set(out_var ${list_var})
+  endif()
+  set(input ${${list_var}})
+
+  # Perform the transformation.
+  set(ret)
+  string(CONFIGURE "${input}" input_expanded)
+  string(REPLACE " " ";" input_raw_list "${input_expanded}")
+  foreach(file ${input_raw_list})
+    file(TO_CMAKE_PATH "${file}" cmake_path_file)
+    list(APPEND ret ${cmake_path_file})
+  endforeach()
+
+  set(${out_var} ${ret} PARENT_SCOPE)
+endfunction()
+
+# Usage:
+#   zephyr_var_name(<variable> <scope> <out>)
+#
+# Internal function for construction of scoped variable name expansion string.
+# Examples:
+#   reading a current scope FOO variable is identical to expand ${FOO}.
+#   reading a cache scope FOO variable is identical to expand $CACHE{FOO}.
+#
+# this functions will return the var name in out var for the scope if it is
+# defined, else it will set the outvar to undefined.
+function(zephyr_var_name variable scope out)
+  if(scope STREQUAL "ENV" OR scope STREQUAL "CACHE")
+    if(DEFINED ${scope}{${variable}})
+      set(${out} "$${scope}{${variable}}" PARENT_SCOPE)
+    else()
+      set(${out} PARENT_SCOPE)
+    endif()
+  else()
+    if(DEFINED ${scope}_${variable})
+      set(${out} "${${scope}_${variable}}" PARENT_SCOPE)
+    else()
+      set(${out} PARENT_SCOPE)
+    endif()
+  endif()
+endfunction()
+
+# Usage:
+#   zephyr_get(<variable> [MERGE [REVERSE]] [SYSBUILD [LOCAL|GLOBAL]] [VAR <var1> ...])
+#
+# Return the value of <variable> as local scoped variable of same name. If MERGE
+# is supplied, will return a list of found items. If REVERSE is supplied
+# together with MERGE, the order of the list will be reversed before being
+# returned. Reverse will happen before the list is returned and hence it will
+# not change the order of precedence in which the list itself is constructed.
+#
+# VAR can be used either to store the result in a variable with a different
+# name, or to look for values from multiple variables.
+# zephyr_get(FOO VAR FOO_A FOO_B)
+# zephyr_get(FOO MERGE VAR FOO_A FOO_B)
 #
 # zephyr_get() is a common function to provide a uniform way of supporting
 # build settings that can be set from sysbuild, CMakeLists.txt, CMake cache, or
@@ -2428,6 +2518,8 @@ endfunction()
 #   - blinky_BOARD is considered a local sysbuild cache variable only for the
 #     blinky image.
 #   If no sysbuild scope is specified, GLOBAL is assumed.
+#   If using MERGE then SYSBUILD GLOBAL will get both the local and global
+#   sysbuild scope variables (in that order, if both exist).
 # - CMake cache, set by `-D<var>=<value>` or `set(<var> <val> CACHE ...)
 # - Environment
 # - Locally in CMakeLists.txt before 'find_package(Zephyr)'
@@ -2437,11 +2529,11 @@ endfunction()
 # using `-DZEPHYR_TOOLCHAIN_VARIANT=<val>`, then the value from the cache is
 # returned.
 function(zephyr_get variable)
-  cmake_parse_arguments(GET_VAR "" "SYSBUILD" "" ${ARGN})
+  cmake_parse_arguments(GET_VAR "MERGE;REVERSE" "SYSBUILD" "VAR" ${ARGN})
 
   if(DEFINED GET_VAR_SYSBUILD)
-    if(NOT (${GET_VAR_SYSBUILD} STREQUAL "GLOBAL" OR
-            ${GET_VAR_SYSBUILD} STREQUAL "LOCAL")
+    if(NOT ("${GET_VAR_SYSBUILD}" STREQUAL "GLOBAL" OR
+            "${GET_VAR_SYSBUILD}" STREQUAL "LOCAL")
     )
       message(FATAL_ERROR "zephyr_get(... SYSBUILD) requires GLOBAL or LOCAL.")
     endif()
@@ -2449,40 +2541,136 @@ function(zephyr_get variable)
     set(GET_VAR_SYSBUILD "GLOBAL")
   endif()
 
-  if(SYSBUILD)
-    get_property(sysbuild_name TARGET sysbuild_cache PROPERTY SYSBUILD_NAME)
-    get_property(sysbuild_main_app TARGET sysbuild_cache PROPERTY SYSBUILD_MAIN_APP)
-    get_property(sysbuild_${variable} TARGET sysbuild_cache PROPERTY ${sysbuild_name}_${variable})
-    if(NOT DEFINED sysbuild_${variable} AND
-       (${GET_VAR_SYSBUILD} STREQUAL "GLOBAL" OR sysbuild_main_app)
-    )
-      get_property(sysbuild_${variable} TARGET sysbuild_cache PROPERTY ${variable})
-    endif()
+  if(GET_VAR_REVERSE AND NOT GET_VAR_MERGE)
+    message(FATAL_ERROR "zephyr_get(... REVERSE) missing a required argument: MERGE")
   endif()
 
-  if(DEFINED sysbuild_${variable})
-    set(${variable} ${sysbuild_${variable}} PARENT_SCOPE)
-  elseif(DEFINED CACHE{${variable}})
-    set(${variable} $CACHE{${variable}} PARENT_SCOPE)
-  elseif(DEFINED ENV{${variable}})
-    set(${variable} $ENV{${variable}} PARENT_SCOPE)
-    # Set the environment variable in CMake cache, so that a build invocation
-    # triggering a CMake rerun doesn't rely on the environment variable still
-    # being available / have identical value.
-    set(${variable} $ENV{${variable}} CACHE INTERNAL "")
+  if(NOT DEFINED GET_VAR_VAR)
+    set(GET_VAR_VAR ${variable})
+  endif()
 
-    if(DEFINED ${variable} AND NOT "${${variable}}" STREQUAL "$ENV{${variable}}")
-      # Variable exists as a local scoped variable, defined in a CMakeLists.txt
-      # file, however it is also set in environment.
-      # This might be a surprise to the user, so warn about it.
-      message(WARNING "environment variable '${variable}' is hiding local "
-                      "variable of same name.\n"
-                      "Environment value (in use): $ENV{${variable}}\n"
-                      "Local scope value (hidden): ${${variable}}\n"
+  # Keep current scope variables in internal variables.
+  # This is needed to properly handle cases where we want to check value against
+  # environment value or when appending with the MERGE operation.
+  foreach(var ${GET_VAR_VAR})
+    set(current_${var} ${${var}})
+    set(${var})
+
+    if(SYSBUILD)
+      get_property(sysbuild_name TARGET sysbuild_cache PROPERTY SYSBUILD_NAME)
+      get_property(sysbuild_main_app TARGET sysbuild_cache PROPERTY SYSBUILD_MAIN_APP)
+      get_property(sysbuild_${var} TARGET sysbuild_cache PROPERTY ${sysbuild_name}_${var})
+      if(NOT DEFINED sysbuild_${var} AND
+         ("${GET_VAR_SYSBUILD}" STREQUAL "GLOBAL" OR sysbuild_main_app)
       )
+        get_property(sysbuild_${var} TARGET sysbuild_cache PROPERTY ${var})
+      endif()
+    else()
+      set(sysbuild_${var})
     endif()
+
+    if(TARGET snippets_scope)
+      get_property(snippets_${var} TARGET snippets_scope PROPERTY ${var})
+    endif()
+  endforeach()
+
+  set(scopes "sysbuild;CACHE;snippets;ENV;current")
+  if(GET_VAR_REVERSE)
+    list(REVERSE scopes)
+  endif()
+  foreach(scope IN LISTS scopes)
+    foreach(var ${GET_VAR_VAR})
+      zephyr_var_name("${var}" "${scope}" expansion_var)
+      if(DEFINED expansion_var)
+        string(CONFIGURE "${expansion_var}" scope_value)
+        if(GET_VAR_MERGE)
+          list(APPEND ${variable} ${scope_value})
+        else()
+          set(${variable} ${scope_value} PARENT_SCOPE)
+
+          if("${scope}" STREQUAL "ENV")
+            # Set the environment variable in CMake cache, so that a build
+            # invocation triggering a CMake rerun doesn't rely on the
+            # environment variable still being available / have identical value.
+            set(${var} $ENV{${var}} CACHE INTERNAL "Cached environment variable ${var}")
+          endif()
+
+          if("${scope}" STREQUAL "ENV" AND DEFINED current_${var}
+             AND NOT "${current_${var}}" STREQUAL "$ENV{${var}}"
+          )
+            # Variable exists as current scoped variable, defined in a CMakeLists.txt
+            # file, however it is also set in environment.
+            # This might be a surprise to the user, so warn about it.
+            message(WARNING "environment variable '${var}' is hiding local "
+                            "variable of same name.\n"
+                            "Environment value (in use): $ENV{${var}}\n"
+                            "Current scope value (hidden): ${current_${var}}\n"
+            )
+          endif()
+
+          return()
+        endif()
+      endif()
+    endforeach()
+  endforeach()
+
+  if(GET_VAR_MERGE)
+    if(GET_VAR_REVERSE)
+      list(REVERSE ${variable})
+      list(REMOVE_DUPLICATES ${variable})
+      list(REVERSE ${variable})
+    else()
+      list(REMOVE_DUPLICATES ${variable})
+    endif()
+    set(${variable} ${${variable}} PARENT_SCOPE)
   endif()
 endfunction(zephyr_get variable)
+
+# Usage:
+#   zephyr_create_scope(<scope>)
+#
+# Create a new scope for creation of scoped variables.
+#
+# <scope>: Name of new scope.
+#
+function(zephyr_create_scope scope)
+  if(TARGET ${scope}_scope)
+    message(FATAL_ERROR "zephyr_create_scope(${scope}) already exists.")
+  endif()
+
+  add_custom_target(${scope}_scope)
+endfunction()
+
+# Usage:
+#   zephyr_set(<variable> <value> SCOPE <scope> [APPEND])
+#
+# Zephyr extension of CMake set which allows a variable to be set in a specific
+# scope. The scope is used on later zephyr_get() invocation for precedence
+# handling when a variable it set in multiple scopes.
+#
+# <variable>   : Name of variable
+# <value>      : Value of variable, multiple values will create a list.
+#                The SCOPE argument identifies the end of value list.
+# SCOPE <scope>: Name of scope for the variable
+# APPEND       : Append values to the already existing variable in <scope>
+#
+function(zephyr_set variable)
+  cmake_parse_arguments(SET_VAR "APPEND" "SCOPE" "" ${ARGN})
+
+  zephyr_check_arguments_required_all(zephyr_set SET_VAR SCOPE)
+
+  if(NOT TARGET ${SET_VAR_SCOPE}_scope)
+    message(FATAL_ERROR "zephyr_set(... SCOPE ${SET_VAR_SCOPE}) doesn't exists.")
+  endif()
+
+  if(SET_VAR_APPEND)
+    set(property_args APPEND)
+  endif()
+
+  set_property(TARGET ${SET_VAR_SCOPE}_scope ${property_args}
+               PROPERTY ${variable} ${SET_VAR_UNPARSED_ARGUMENTS}
+  )
+endfunction()
 
 # Usage:
 #   zephyr_check_cache(<variable> [REQUIRED])
@@ -3427,7 +3615,108 @@ function(target_sources_if_dt_node path target scope item)
 endfunction()
 
 ########################################################
-# 5. Zephyr linker function
+# 4.3 zephyr_dt_*
+#
+# The following methods are common code for dealing
+# with devicetree related files in CMake.
+#
+# Note that functions related to accessing the
+# *contents* of the devicetree belong in section 4.1.
+# This section is just for DT file processing at
+# configuration time.
+########################################################
+
+# Usage:
+#   zephyr_dt_preprocess(CPP <path> [<argument...>]
+#                        SOURCE_FILES <file...>
+#                        OUT_FILE <file>
+#                        [DEPS_FILE <file>]
+#                        [EXTRA_CPPFLAGS <flag...>]
+#                        [INCLUDE_DIRECTORIES <dir...>]
+#                        [WORKING_DIRECTORY <dir>]
+#
+# Preprocess one or more devicetree source files. The preprocessor
+# symbol __DTS__ will be defined. If the preprocessor command fails, a
+# fatal error occurs.
+#
+# Mandatory arguments:
+#
+# CPP <path> [<argument...>]: path to C preprocessor, followed by any
+#                             additional arguments
+#
+# SOURCE_FILES <file...>: The source files to run the preprocessor on.
+#                         These will, in effect, be concatenated in order
+#                         and used as the preprocessor input.
+#
+# OUT_FILE <file>: Where to store the preprocessor output.
+#
+# Optional arguments:
+#
+# DEPS_FILE <file>: If set, generate a dependency file here.
+#
+# EXTRA_CPPFLAGS <flag...>: Additional flags to pass the preprocessor.
+#
+# INCLUDE_DIRECTORIES <dir...>: Additional #include file directories.
+#
+# WORKING_DIRECTORY <dir>: where to run the preprocessor.
+function(zephyr_dt_preprocess)
+  set(req_single_args "OUT_FILE")
+  set(single_args "DEPS_FILE;WORKING_DIRECTORY")
+  set(req_multi_args "CPP;SOURCE_FILES")
+  set(multi_args "EXTRA_CPPFLAGS;INCLUDE_DIRECTORIES")
+  cmake_parse_arguments(DT_PREPROCESS "" "${req_single_args};${single_args}" "${req_multi_args};${multi_args}" ${ARGN})
+
+  foreach(arg ${req_single_args} ${req_multi_args})
+    if(NOT DEFINED DT_PREPROCESS_${arg})
+      message(FATAL_ERROR "dt_preprocess() missing required argument: ${arg}")
+    endif()
+  endforeach()
+
+  set(include_opts)
+  foreach(dir ${DT_PREPROCESS_INCLUDE_DIRECTORIES})
+    list(APPEND include_opts -isystem ${dir})
+  endforeach()
+
+  set(source_opts)
+  foreach(file ${DT_PREPROCESS_SOURCE_FILES})
+    list(APPEND source_opts -include ${file})
+  endforeach()
+
+  set(deps_opts)
+  if(DEFINED DT_PREPROCESS_DEPS_FILE)
+    list(APPEND deps_opts -MD -MF ${DT_PREPROCESS_DEPS_FILE})
+  endif()
+
+  set(workdir_opts)
+  if(DEFINED DT_PREPROCESS_WORKING_DIRECTORY)
+    list(APPEND workdir_opts WORKING_DIRECTORY ${DT_PREPROCESS_WORKING_DIRECTORY})
+  endif()
+
+  # We are leaving linemarker directives enabled on purpose. This tells
+  # dtlib where each line actually came from, which improves error
+  # reporting.
+  set(preprocess_cmd ${DT_PREPROCESS_CPP}
+    -x assembler-with-cpp
+    -nostdinc
+    ${include_opts}
+    ${source_opts}
+    ${NOSYSDEF_CFLAG}
+    -D__DTS__
+    ${DT_PREPROCESS_EXTRA_CPPFLAGS}
+    -E   # Stop after preprocessing
+    ${deps_opts}
+    -o ${DT_PREPROCESS_OUT_FILE}
+    ${ZEPHYR_BASE}/misc/empty_file.c
+    ${workdir_opts})
+
+  execute_process(COMMAND ${preprocess_cmd} RESULT_VARIABLE ret)
+  if(NOT "${ret}" STREQUAL "0")
+    message(FATAL_ERROR "failed to preprocess devicetree files (error code ${ret}): ${DT_PREPROCESS_SOURCE_FILES}")
+  endif()
+endfunction()
+
+########################################################
+# 5. Zephyr linker functions
 ########################################################
 # 5.1. zephyr_linker*
 #
@@ -3969,6 +4258,7 @@ endmacro()
 # ADDRESS <address>   : Specific address to use for this section.
 # ALIGN_WITH_INPUT    : The alignment difference between VMA and LMA is kept
 #                       intact for this section.
+# NUMERIC             : Use numeric sorting.
 # SUBALIGN <alignment>: Force input alignment with size <alignment>
 #  Note: Regarding all alignment attributes. Not all linkers may handle alignment
 #        in identical way. For example the Scatter file will align both load and
@@ -3976,7 +4266,7 @@ endmacro()
 #/
 function(zephyr_iterable_section)
   # ToDo - Should we use ROM, RAM, etc as arguments ?
-  set(options     "ALIGN_WITH_INPUT")
+  set(options     "ALIGN_WITH_INPUT;NUMERIC")
   set(single_args "GROUP;LMA;NAME;SUBALIGN;VMA")
   set(multi_args  "")
   set(align_input)
@@ -3998,6 +4288,12 @@ function(zephyr_iterable_section)
     set(align_input ALIGN_WITH_INPUT)
   endif()
 
+  if(SECTION_NUMERIC)
+    set(INPUT "._${SECTION_NAME}.static.*_?_*;._${SECTION_NAME}.static.*_??_*")
+  else()
+    set(INPUT "._${SECTION_NAME}.static.*")
+  endif()
+
   zephyr_linker_section(
     NAME ${SECTION_NAME}_area
     GROUP "${SECTION_GROUP}"
@@ -4006,7 +4302,7 @@ function(zephyr_iterable_section)
   )
   zephyr_linker_section_configure(
     SECTION ${SECTION_NAME}_area
-    INPUT "._${SECTION_NAME}.static.*"
+    INPUT "${INPUT}"
     SYMBOLS _${SECTION_NAME}_list_start _${SECTION_NAME}_list_end
     KEEP SORT NAME
   )
@@ -4048,13 +4344,13 @@ function(zephyr_linker_section_obj_level)
 
   zephyr_linker_section_configure(
     SECTION ${OBJ_SECTION}
-    INPUT ".z_${OBJ_SECTION}_${OBJ_LEVEL}?_"
+    INPUT ".z_${OBJ_SECTION}_${OBJ_LEVEL}?_*"
     SYMBOLS __${OBJ_SECTION}_${OBJ_LEVEL}_start
     KEEP SORT NAME
   )
   zephyr_linker_section_configure(
     SECTION ${OBJ_SECTION}
-    INPUT ".z_${OBJ_SECTION}_${OBJ_LEVEL}??_"
+    INPUT ".z_${OBJ_SECTION}_${OBJ_LEVEL}??_*"
     KEEP SORT NAME
   )
 endfunction()
@@ -4158,7 +4454,7 @@ endfunction()
 #     zephyr_linker_symbol(SYMBOL bar EXPR "(@foo@ + 1024)")
 #
 function(zephyr_linker_symbol)
-  set(single_args "EXPR;SYMBOL")
+  set(single_args "EXPR;SYMBOL;OBJECT")
   cmake_parse_arguments(SYMBOL "" "${single_args}" "" ${ARGN})
 
   if(SECTION_UNPARSED_ARGUMENTS)

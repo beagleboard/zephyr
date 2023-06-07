@@ -13,15 +13,24 @@
 #include <bs_pc_backchannel.h>
 #include <time_machine.h>
 
+#if defined CONFIG_BT_MESH_USES_MBEDTLS_PSA
+#include <psa/crypto.h>
+#elif defined CONFIG_BT_MESH_USES_TINYCRYPT
 #include <tinycrypt/constants.h>
 #include <tinycrypt/ecc.h>
 #include <tinycrypt/ecc_dh.h>
+#else
+#error "Unknown crypto library has been chosen"
+#endif
 
 #include <zephyr/sys/byteorder.h>
 
 #define LOG_MODULE_NAME mesh_prov
 
 #include <zephyr/logging/log.h>
+#include "mesh/adv.h"
+#include "mesh/rpr.h"
+
 LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 /*
@@ -33,6 +42,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #define PROV_REPROV_COUNT 3
 #define WAIT_TIME 120 /*seconds*/
 #define IS_RPR_PRESENT  (CONFIG_BT_MESH_RPR_SRV && CONFIG_BT_MESH_RPR_CLI)
+#define IMPOSTER_MODEL_ID 0xe000
 
 enum test_flags {
 	IS_PROVISIONER,
@@ -44,7 +54,7 @@ static uint8_t static_key1[] = {0x6E, 0x6F, 0x72, 0x64, 0x69, 0x63, 0x5F,
 		0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, 0x5F, 0x31};
 static uint8_t static_key2[] = {0x6E, 0x6F, 0x72, 0x64, 0x69, 0x63, 0x5F};
 
-static uint8_t private_key_be[64];
+static uint8_t private_key_be[32];
 static uint8_t public_key_be[64];
 
 static struct oob_auth_test_vector_s {
@@ -77,14 +87,18 @@ extern const uint8_t test_app_key[16];
 
 /* Timeout semaphore */
 static struct k_sem prov_sem;
+static K_SEM_DEFINE(link_open_sem, 0, 1);
 static uint16_t prov_addr = 0x0002;
 static uint16_t current_dev_addr;
 static const uint8_t dev_key[16] = { 0x01, 0x02, 0x03, 0x04, 0x05 };
 static uint8_t dev_uuid[16] = { 0x6c, 0x69, 0x6e, 0x67, 0x61, 0x6f };
 static uint8_t *uuid_to_provision;
 static struct k_sem reprov_sem;
+static uint32_t link_close_timestamp;
 
 #if IS_RPR_PRESENT
+static struct k_sem pdu_send_sem;
+static struct k_sem scan_sem;
 /* Remote Provisioning models related variables. */
 static uint8_t *uuid_to_provision_remote;
 static void rpr_scan_report(struct bt_mesh_rpr_cli *cli, const struct bt_mesh_rpr_node *srv,
@@ -112,6 +126,48 @@ static const struct bt_mesh_comp rpr_srv_comp = {
 			BT_MESH_ELEM(1,
 				     MODEL_LIST(BT_MESH_MODEL_CFG_SRV,
 						BT_MESH_MODEL_RPR_SRV),
+				     BT_MESH_MODEL_NONE),
+		},
+	.elem_count = 1,
+};
+
+static int mock_pdu_send(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+			       struct net_buf_simple *buf)
+{
+	/* Device becomes unresponsive and doesn't communicate with other nodes anymore */
+	bt_mesh_suspend();
+
+	k_sem_give(&pdu_send_sem);
+
+	return 0;
+}
+
+static const struct bt_mesh_model_op model_rpr_op1[] = {
+	{ RPR_OP_PDU_SEND, 0, mock_pdu_send },
+	BT_MESH_MODEL_OP_END
+};
+
+static int mock_model_init(struct bt_mesh_model *mod)
+{
+	mod->keys[0] = BT_MESH_KEY_DEV_LOCAL;
+	mod->flags |= BT_MESH_MOD_DEVKEY_ONLY;
+
+	return 0;
+}
+
+const struct bt_mesh_model_cb mock_model_cb = {
+	.init = mock_model_init
+};
+
+static const struct bt_mesh_comp rpr_srv_comp_unresponsive = {
+	.elem =
+		(struct bt_mesh_elem[]){
+			BT_MESH_ELEM(1,
+				     MODEL_LIST(BT_MESH_MODEL_CFG_SRV,
+						BT_MESH_MODEL_CB(IMPOSTER_MODEL_ID,
+								 model_rpr_op1, NULL, NULL,
+								 &mock_model_cb),
+						BT_MESH_MODEL_RPR_SRV,),
 				     BT_MESH_MODEL_NONE),
 		},
 	.elem_count = 1,
@@ -183,6 +239,16 @@ static void prov_complete(uint16_t net_idx, uint16_t addr)
 	if (!atomic_test_bit(test_flags, IS_PROVISIONER)) {
 		k_sem_give(&prov_sem);
 	}
+}
+
+static void prov_link_open(bt_mesh_prov_bearer_t bearer)
+{
+	k_sem_give(&link_open_sem);
+}
+
+static void prov_link_close(bt_mesh_prov_bearer_t bearer)
+{
+	link_close_timestamp = k_uptime_get_32();
 }
 
 static void prov_node_added(uint16_t net_idx, uint8_t uuid[16], uint16_t addr,
@@ -260,6 +326,8 @@ static struct bt_mesh_prov prov = {
 	.uuid = dev_uuid,
 	.unprovisioned_beacon = unprovisioned_beacon,
 	.complete = prov_complete,
+	.link_open = prov_link_open,
+	.link_close = prov_link_close,
 	.reprovisioned = prov_reprovisioned,
 	.node_added = prov_node_added,
 	.output_number = output_number,
@@ -325,6 +393,48 @@ static void oob_auth_set(int test_step)
 	prov.input_actions = oob_auth_test_vector[test_step].input_actions;
 }
 
+#if defined CONFIG_BT_MESH_USES_MBEDTLS_PSA
+static void generate_oob_key_pair(void)
+{
+	psa_key_attributes_t key_attributes = PSA_KEY_ATTRIBUTES_INIT;
+	psa_key_id_t priv_key_id = PSA_KEY_ID_NULL;
+	psa_status_t status;
+	size_t key_len;
+	uint8_t public_key_repr[PSA_KEY_EXPORT_ECC_PUBLIC_KEY_MAX_SIZE(256)];
+
+	/* Crypto settings for ECDH using the SHA256 hashing algorithm,
+	 * the secp256r1 curve
+	 */
+	psa_set_key_usage_flags(&key_attributes, PSA_KEY_USAGE_DERIVE | PSA_KEY_USAGE_EXPORT);
+	psa_set_key_lifetime(&key_attributes, PSA_KEY_LIFETIME_VOLATILE);
+	psa_set_key_algorithm(&key_attributes, PSA_ALG_ECDH);
+	psa_set_key_type(&key_attributes, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1));
+	psa_set_key_bits(&key_attributes, 256);
+
+	/* Generate a key pair */
+	status = psa_generate_key(&key_attributes, &priv_key_id);
+	ASSERT_TRUE(status == PSA_SUCCESS);
+
+	status = psa_export_public_key(priv_key_id, public_key_repr, sizeof(public_key_repr),
+				       &key_len);
+	ASSERT_TRUE(status == PSA_SUCCESS);
+
+	ASSERT_TRUE(key_len == PSA_KEY_EXPORT_ECC_PUBLIC_KEY_MAX_SIZE(256));
+
+	status = psa_export_key(priv_key_id, private_key_be, sizeof(private_key_be), &key_len);
+	ASSERT_TRUE(status == PSA_SUCCESS);
+
+	ASSERT_TRUE(key_len == sizeof(private_key_be));
+
+	memcpy(public_key_be, public_key_repr + 1, 64);
+}
+#elif defined CONFIG_BT_MESH_USES_TINYCRYPT
+static void generate_oob_key_pair(void)
+{
+	ASSERT_TRUE(uECC_make_key(public_key_be, private_key_be, uECC_secp256r1()));
+}
+#endif
+
 static void oob_device(bool use_oob_pk)
 {
 	k_sem_init(&prov_sem, 0, 1);
@@ -332,7 +442,7 @@ static void oob_device(bool use_oob_pk)
 	bt_mesh_device_setup(&prov, &comp);
 
 	if (use_oob_pk) {
-		ASSERT_TRUE(uECC_make_key(public_key_be, private_key_be, uECC_secp256r1()));
+		generate_oob_key_pair();
 		prov.public_key_be = public_key_be;
 		prov.private_key_be = private_key_be;
 		bs_bc_send_msg(*oob_channel_id, public_key_be, 64);
@@ -646,6 +756,34 @@ static void test_provisioner_pb_adv_reprovision(void)
 	PASS();
 }
 
+/** @brief Device starts unprovisioned. Stops being responsive to Mesh message after initial setup.
+ * Later becomes responsive but becomes unresponsive again after provisioning link opens.
+ * Then becomes responsive again allowing successful provisioning. Never stops advertising
+ * Unprovisioned Device beacons.
+ */
+static void test_device_unresponsive(void)
+{
+	bt_mesh_device_setup(&prov, &comp);
+
+	k_sem_init(&prov_sem, 0, 1);
+
+	ASSERT_OK(bt_mesh_prov_enable(BT_MESH_PROV_ADV));
+
+	/* stop responding for 30s to timeout PB-ADV link establishment. */
+	bt_mesh_scan_disable();
+	k_sleep(K_SECONDS(30));
+	bt_mesh_scan_enable();
+
+	k_sem_take(&link_open_sem, K_SECONDS(20));
+	/* stop responding for 60s to timeout protocol */
+	bt_mesh_scan_disable();
+	k_sleep(K_SECONDS(60));
+	bt_mesh_scan_enable();
+
+	k_sem_take(&prov_sem, K_SECONDS(20));
+	PASS();
+}
+
 #if IS_RPR_PRESENT
 static int provision_adv(uint8_t dev_idx, uint16_t *addr)
 {
@@ -769,6 +907,130 @@ static void test_provisioner_pb_remote_client_reprovision(void)
 
 		node_configure_and_reset();
 	}
+
+	PASS();
+}
+
+static void rpr_scan_report_parallel(struct bt_mesh_rpr_cli *cli,
+				const struct bt_mesh_rpr_node *srv,
+				struct bt_mesh_rpr_unprov *unprov,
+				struct net_buf_simple *adv_data)
+{
+	if (!uuid_to_provision_remote || memcmp(uuid_to_provision_remote, unprov->uuid, 16)) {
+		return;
+	}
+
+	LOG_INF("Scanning dev idx 2 succeeded.\n");
+	k_sem_give(&scan_sem);
+}
+
+static void test_provisioner_pb_remote_client_parallel(void)
+{
+	static uint8_t uuid[16];
+	uint16_t pb_remote_server_addr;
+	struct bt_mesh_rpr_scan_status scan_status;
+
+	memcpy(uuid, dev_uuid, 16);
+
+	k_sem_init(&prov_sem, 0, 1);
+	k_sem_init(&scan_sem, 0, 1);
+
+	bt_mesh_device_setup(&prov, &rpr_cli_comp);
+
+	ASSERT_OK(bt_mesh_cdb_create(test_net_key));
+	ASSERT_OK(bt_mesh_provision(test_net_key, 0, 0, 0, 0x0001, dev_key));
+
+	/* Provision the 2nd device over PB-Adv. */
+	ASSERT_OK(provision_adv(1, &pb_remote_server_addr));
+
+	struct bt_mesh_rpr_node srv = {
+		.addr = pb_remote_server_addr,
+		.net_idx = 0,
+		.ttl = 3,
+	};
+
+	rpr_cli.scan_report = rpr_scan_report_parallel;
+
+	LOG_INF("Scanning dev idx 2 and provisioning dev idx 3 in parallel ...\n");
+	/* provisioning device with dev index 2 */
+	uuid[6] = '0' + 2;
+	ASSERT_OK(bt_mesh_provision_remote(&rpr_cli, &srv, uuid, 0, prov_addr));
+	/* scanning device with dev index 3 */
+	uuid[6] = '0' + 3;
+	uuid_to_provision_remote = uuid;
+	ASSERT_OK(bt_mesh_rpr_scan_start(&rpr_cli, &srv, uuid, 5, 1, &scan_status));
+	ASSERT_EQUAL(BT_MESH_RPR_SUCCESS, scan_status.status);
+	ASSERT_EQUAL(BT_MESH_RPR_SCAN_SINGLE, scan_status.scan);
+	ASSERT_EQUAL(1, scan_status.max_devs);
+	ASSERT_EQUAL(5, scan_status.timeout);
+
+	ASSERT_OK(k_sem_take(&scan_sem, K_SECONDS(20)));
+	ASSERT_OK(k_sem_take(&prov_sem, K_SECONDS(20)));
+
+	/* Provisioning device index 3. Need it to succeed provisionee test scenario. */
+	ASSERT_OK(bt_mesh_provision_remote(&rpr_cli, &srv, uuid, 0, prov_addr));
+	ASSERT_OK(k_sem_take(&prov_sem, K_SECONDS(20)));
+
+	PASS();
+}
+
+/** @brief Test Provisioning procedure on Remote Provisioning client:
+ * - verify procedure timeouts on unresponsive unprovisioned device.
+ */
+static void test_provisioner_pb_remote_client_provision_timeout(void)
+{
+	uint16_t pb_remote_server_addr;
+	uint8_t uuid[16];
+	uint32_t link_close_wait_start;
+	struct bt_mesh_rpr_scan_status scan_status;
+
+	k_sem_init(&scan_sem, 0, 1);
+
+	provisioner_pb_remote_client_setup();
+	bt_mesh_test_cfg_set(NULL, 300);
+
+	/* Provision the 2nd device over PB-Adv. */
+	ASSERT_OK(provision_adv(1, &pb_remote_server_addr));
+
+	/* Provision the 3rd device over PB-Remote. */
+	struct bt_mesh_rpr_node srv = {
+		.addr = pb_remote_server_addr,
+		.net_idx = 0,
+		.ttl = 3,
+	};
+
+	rpr_cli.scan_report = rpr_scan_report_parallel;
+
+	/* Offset timeline of test to give some time to 3rd device to setup and disable scanning */
+	k_sleep(K_SECONDS(10));
+
+	memcpy(uuid, dev_uuid, 16);
+	uuid[6] = '0' + 2;
+	uuid_to_provision_remote = uuid;
+
+	LOG_INF("Starting scanning for an unprov device...");
+	ASSERT_OK(bt_mesh_rpr_scan_start(&rpr_cli, &srv, uuid, 5, 1, &scan_status));
+	ASSERT_EQUAL(BT_MESH_RPR_SUCCESS, scan_status.status);
+	ASSERT_EQUAL(BT_MESH_RPR_SCAN_SINGLE, scan_status.scan);
+	ASSERT_EQUAL(1, scan_status.max_devs);
+	ASSERT_EQUAL(5, scan_status.timeout);
+
+	ASSERT_OK(k_sem_take(&scan_sem, K_SECONDS(20)));
+
+	/* Invalidate earlier timestamp */
+	link_close_timestamp = -1;
+	ASSERT_OK(bt_mesh_provision_remote(&rpr_cli, &srv, uuid, 0, prov_addr));
+	link_close_wait_start = k_uptime_get_32();
+	ASSERT_EQUAL(k_sem_take(&prov_sem, K_SECONDS(20)), -EAGAIN);
+	ASSERT_EQUAL((link_close_timestamp - link_close_wait_start) / MSEC_PER_SEC, 10);
+
+	/* 3rd device should now respond but stop again after link is opened */
+	link_close_timestamp = -1;
+	ASSERT_OK(bt_mesh_provision_remote(&rpr_cli, &srv, uuid, 0, prov_addr));
+	ASSERT_OK(k_sem_take(&link_open_sem, K_SECONDS(20)));
+	link_close_wait_start = k_uptime_get_32();
+	ASSERT_EQUAL(k_sem_take(&prov_sem, K_SECONDS(61)), -EAGAIN);
+	ASSERT_EQUAL((link_close_timestamp - link_close_wait_start) / MSEC_PER_SEC, 60);
 
 	PASS();
 }
@@ -908,6 +1170,23 @@ static void test_device_pb_remote_server_unproved(void)
 #endif
 
 	device_pb_remote_server_setup_unproved(&rpr_srv_comp);
+
+	PASS();
+}
+
+/** @brief A device running a Remote Provisioning server that is used to provision unprovisioned
+ * devices over PB-Remote. Always starts unprovisioned. Stops being responsive after receives
+ * Remote Provisioning PDU Send message from RPR Client
+ */
+static void test_device_pb_remote_server_unproved_unresponsive(void)
+{
+#if defined(CONFIG_BT_SETTINGS)
+	settings_test_backend_clear();
+#endif
+	device_pb_remote_server_setup_unproved(&rpr_srv_comp_unresponsive);
+
+	k_sem_init(&pdu_send_sem, 0, 1);
+	ASSERT_OK(k_sem_take(&pdu_send_sem, K_SECONDS(200)));
 
 	PASS();
 }
@@ -1208,11 +1487,15 @@ static const struct bst_test_instance test_connect[] = {
 		  "Device: pb-adv provisioning use oob public key"),
 	TEST_CASE(device, pb_adv_reprovision,
 		  "Device: pb-adv provisioning, reprovision"),
+	TEST_CASE(device, unresponsive,
+		  "Device: pb-adv provisioning, stops and resumes responding to provisioning"),
 #if IS_RPR_PRESENT
 	TEST_CASE(device, pb_remote_server_unproved,
 		  "Device: used for remote provisioning, starts unprovisioned"),
 	TEST_CASE(device, pb_remote_server_nppi_robustness,
 		  "Device: pb-remote reprovisioning, NPPI robustness"),
+	TEST_CASE(device, pb_remote_server_unproved_unresponsive,
+		  "Device: used for remote provisioning, starts unprovisioned, stops responding"),
 #endif
 
 	TEST_CASE(provisioner, pb_adv_no_oob,
@@ -1236,6 +1519,10 @@ static const struct bst_test_instance test_connect[] = {
 		  "Provisioner: pb-remote provisioning, resetting and reprov-ing multiple times."),
 	TEST_CASE(provisioner, pb_remote_client_nppi_robustness,
 		  "Provisioner: pb-remote provisioning, NPPI robustness."),
+	TEST_CASE(provisioner, pb_remote_client_parallel,
+		  "Provisioner: pb-remote provisioning, parallel scanning and provisioning."),
+	TEST_CASE(provisioner, pb_remote_client_provision_timeout,
+		  "Provisioner: provisioning test, devices stop responding"),
 #endif
 
 	BSTEST_END_MARKER

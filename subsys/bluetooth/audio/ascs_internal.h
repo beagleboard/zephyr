@@ -7,6 +7,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#define BT_ASCS_ASE_ID_NONE              0x00
 
 /* Transport QoS Packing */
 #define BT_ASCS_QOS_PACKING_SEQ          0x00
@@ -330,6 +331,9 @@ static inline const char *bt_ascs_reason_str(uint8_t reason)
 
 	return "Unknown";
 }
+
+int bt_ascs_init(const struct bt_bap_unicast_server_cb *cb);
+void bt_ascs_cleanup(void);
 
 void ascs_ep_set_state(struct bt_bap_ep *ep, uint8_t state);
 

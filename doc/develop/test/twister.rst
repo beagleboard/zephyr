@@ -360,7 +360,7 @@ min_flash: <integer>
     compared with information provided by the board metadata.
 
 timeout: <number of seconds>
-    Length of time to run test in QEMU before automatically killing it.
+    Length of time to run test before automatically killing it.
     Default to 60 seconds.
 
 arch_allow: <list of arches, such as x86, arm, arc>
@@ -408,8 +408,6 @@ harness: <string>
     keyboard harness is set on tests that require keyboard interaction to reach
     verdict on whether a test has passed or failed, however, Twister lack this
     harness implementation at the momemnt.
-    The console harness tells Twister to parse a test's text output for a regex
-    defined in the test's YAML file.
 
     Supported harnesses:
 
@@ -417,6 +415,17 @@ harness: <string>
     - test
     - console
     - pytest
+    - gtest
+    - robot
+
+    Harnesses ``ztest``, ``gtest`` and ``console`` are based on parsing of the
+    output and matching certain phrases. ``ztest`` and ``gtest`` harnesses look
+    for pass/fail/etc. frames defined in those frameworks. Use ``gtest``
+    harness if you've already got tests written in the gTest framework and do
+    not wish to update them to zTest. The ``console`` harness tells Twister to
+    parse a test's text output for a regex defined in the test's YAML file.
+    The ``robot`` harness is used to execute Robot Framework test suites
+    in the Renode simulation framework.
 
     Some widely used harnesses that are not supported yet:
 
@@ -491,6 +500,9 @@ harness_config: <harness configuration options>
     pytest_args: <list of arguments> (default empty)
         Specify a list of additional arguments to pass to ``pytest``.
 
+    robot_test_path: <robot file path> (default empty)
+        Specify a path to a file containing a Robot Framework test suite to be run.
+
     The following is an example yaml file with a few harness_config options.
 
     ::
@@ -523,6 +535,16 @@ harness_config: <harness configuration options>
             harness: pytest
             harness_config:
               pytest_root: [pytest directory name]
+
+    The following is an example yaml file with robot harness_config options.
+
+    ::
+
+        tests:
+          robot.example:
+            harness: robot
+            harness_config:
+              robot_test_path: [robot file path]
 
 filter: <expression>
     Filter whether the testcase should be run by evaluating an expression
@@ -680,6 +702,13 @@ In this case you can run twister with the following options:
 The script is user-defined and handles delivering the messages which can be
 used by twister to determine the test execution status.
 
+The ``--device-flash-timeout`` option allows to set explicit timeout on the
+device flash operation, for example when device flashing takes significantly
+large time.
+
+The ``--device-flash-with-test`` option indicates that on the platform
+the flash operation also executes a test case, so the flash timeout is
+increased by a test case timeout.
 
 Executing tests on multiple devices
 ===================================
@@ -820,18 +849,13 @@ on those platforms.
   with the hardware map features. Boards that require other runners to flash the
   Zephyr binary are still work in progress.
 
+Hardware map allows to set ``--device-flash-timeout`` and ``--device-flash-with-test``
+command line options as ``flash-timeout`` and ``flash-with-test`` fields respectively.
+These hardware map values override command line options for the particular platform.
+
 Serial PTY support using ``--device-serial-pty``  can also be used in the
 hardware map::
 
- - connected: true
-   id: None
-   platform: intel_adsp_cavs18
-   product: None
-   runner: intel_adsp
-   serial_pty: path/to/script.py
-   runner_params:
-     - --remote-host=remote_host_ip_addr
-     - --key=/path/to/key.pem
  - connected: true
    id: None
    platform: intel_adsp_cavs25
@@ -855,7 +879,7 @@ work. It is equivalent to following west and twister commands.
 
          west flash --remote-host remote_host_ip_addr --key /path/to/key.pem
 
-         twister -p intel_adsp_cavs18 --device-testing --device-serial-pty script.py
+         twister -p intel_adsp_cavs25 --device-testing --device-serial-pty script.py
          --west-flash="--remote-host=remote_host_ip_addr,--key=/path/to/key.pem"
 
    .. group-tab:: Windows
@@ -1075,6 +1099,53 @@ And example test level configuration::
 	      - arch.interrupt
 	      - boards.*
 
+
+Combined configuration
+======================
+
+To mix the Platform and level confgiuration, you can take an example as below:
+
+And example platforms plus level configuration::
+
+	platforms:
+	  override_default_platforms: true
+	  default_platforms:
+	    - frdm_k64f
+	levels:
+	  - name: smoke
+	    description: >
+	        A plan to be used verifying basic zephyr features.
+	  - name: unit
+	    description: >
+	        A plan to be used verifying unit test.
+	  - name: integration
+	    description: >
+	        A plan to be used verifying integration.
+	  - name: acceptance
+	    description: >
+	        A plan to be used verifying acceptance.
+	  - name: system
+	    description: >
+	        A plan to be used verifying system.
+	  - name: regression
+	    description: >
+	        A plan to be used verifying regression.
+
+
+To run with above test_config.yaml file, only default_paltforms with given test level
+test cases will run.
+
+.. tabs::
+
+   .. group-tab:: Linux
+
+      .. code-block:: bash
+
+         scripts/twister --test-config=<path to>/test_config.yaml
+          -T tests --level="smoke"
+
+
+
 Running in Tests in Random Order
 ********************************
 Enable ZTEST framework's :kconfig:option:`CONFIG_ZTEST_SHUFFLE` config option to
@@ -1083,3 +1154,43 @@ dependencies between test cases.  For native_posix platforms, you can provide
 the seed to the random number generator by providing ``-seed=value`` as an
 argument to twister. See :ref:`Shuffling Test Sequence <ztest_shuffle>` for more
 details.
+
+Robot Framework Tests
+*********************
+Zephyr supports `Robot Framework <https://robotframework.org/>`_ as one of solutions for automated testing.
+
+Robot files allow you to express interactive test scenarios in human-readable text format and execute them in simulation or against hardware.
+At this moment Zephyr integration supports running Robot tests in the `Renode <https://renode.io/>`_ simulation framework.
+
+To execute a Robot test suite with twister, run the following command:
+
+.. tabs::
+
+   .. group-tab:: Linux
+
+      .. code-block:: bash
+
+         $ ./scripts/twister --platform hifive1 --test samples/subsys/shell/shell_module/sample.shell.shell_module.robot
+
+   .. group-tab:: Windows
+
+      .. code-block:: bat
+
+         python .\scripts\twister --platform hifive1 --test samples/subsys/shell/shell_module/sample.shell.shell_module.robot
+
+It's also possible to run it by `west` directly, with:
+
+.. code-block:: bash
+
+   $ ROBOT_FILES=shell_module.robot west build -p -b hifive1 -s samples/subsys/shell/shell_module -t run_renode_test
+
+Writing Robot tests
+===================
+
+For the list of keywords provided by the Robot Framework itself, refer to `the official Robot documentation <https://robotframework.org/robotframework/>`_.
+
+Information on writing and running Robot Framework tests in Renode can be found in `the testing section <https://renode.readthedocs.io/en/latest/introduction/testing.html>`_ of Renode documentation.
+It provides a list of the most commonly used keywords together with links to the source code where those are defined.
+
+It's possible to extend the framework by adding new keywords expressed directly in Robot test suite files, as an external Python library or, like Renode does it, dynamically via XML-RPC.
+For details see the `extending Robot Framework <https://robotframework.org/robotframework/latest/RobotFrameworkUserGuide.html#extending-robot-framework>`_ section in the official Robot documentation.

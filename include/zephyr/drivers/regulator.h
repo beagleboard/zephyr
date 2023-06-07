@@ -20,7 +20,9 @@
 
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
+#ifdef CONFIG_REGULATOR_THREAD_SAFE_REFCNT
 #include <zephyr/kernel.h>
+#endif
 #include <zephyr/sys/util_macro.h>
 
 #ifdef __cplusplus
@@ -123,6 +125,8 @@ struct regulator_common_config {
 	int32_t min_uv;
 	/** Maximum allowed voltage, in microvolts. */
 	int32_t max_uv;
+	/** Initial voltage, in microvolts. */
+	int32_t init_uv;
 	/** Minimum allowed current, in microamps. */
 	int32_t min_ua;
 	/** Maximum allowed current, in microamps. */
@@ -148,6 +152,8 @@ struct regulator_common_config {
 				     INT32_MIN),                               \
 		.max_uv = DT_PROP_OR(node_id, regulator_max_microvolt,         \
 				     INT32_MAX),                               \
+		.init_uv = DT_PROP_OR(node_id, regulator_init_microvolt,       \
+				      INT32_MIN),			       \
 		.min_ua = DT_PROP_OR(node_id, regulator_min_microamp,          \
 				     INT32_MIN),                               \
 		.max_ua = DT_PROP_OR(node_id, regulator_max_microamp,          \
@@ -178,8 +184,10 @@ struct regulator_common_config {
  * This structure **must** be placed first in the driver's data structure.
  */
 struct regulator_common_data {
-	/** Lock */
+#if defined(CONFIG_REGULATOR_THREAD_SAFE_REFCNT) || defined(__DOXYGEN__)
+	/** Lock (only if @kconfig{CONFIG_REGULATOR_THREAD_SAFE_REFCNT}=y) */
 	struct k_mutex lock;
+#endif
 	/** Reference count */
 	int refcnt;
 };
@@ -215,6 +223,21 @@ void regulator_common_data_init(const struct device *dev);
  * @retval -errno Negative errno in case of failure.
  */
 int regulator_common_init(const struct device *dev, bool is_enabled);
+
+/**
+ * @brief Check if regulator is expected to be enabled at init time.
+ *
+ * @param dev Regulator device instance
+ * @return true If regulator needs to be enabled at init time.
+ * @return false If regulator does not need to be enabled at init time.
+ */
+static inline bool regulator_common_is_init_enabled(const struct device *dev)
+{
+	const struct regulator_common_config *config =
+		(const struct regulator_common_config *)dev->config;
+
+	return (config->flags & REGULATOR_INIT_ENABLED) != 0U;
+}
 
 /** @endcond */
 

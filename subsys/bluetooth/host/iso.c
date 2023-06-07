@@ -44,11 +44,13 @@ static struct bt_iso_recv_info iso_info_data[CONFIG_BT_ISO_RX_BUF_COUNT];
 
 #if defined(CONFIG_BT_ISO_UNICAST) || defined(CONFIG_BT_ISO_BROADCAST)
 NET_BUF_POOL_FIXED_DEFINE(iso_tx_pool, CONFIG_BT_ISO_TX_BUF_COUNT,
-			  BT_ISO_SDU_BUF_SIZE(CONFIG_BT_ISO_TX_MTU), 8, NULL);
+			  BT_ISO_SDU_BUF_SIZE(CONFIG_BT_ISO_TX_MTU),
+			  CONFIG_BT_CONN_TX_USER_DATA_SIZE, NULL);
 
 #if CONFIG_BT_ISO_TX_FRAG_COUNT > 0
 NET_BUF_POOL_FIXED_DEFINE(iso_frag_pool, CONFIG_BT_ISO_TX_FRAG_COUNT,
-			  BT_ISO_SDU_BUF_SIZE(CONFIG_BT_ISO_TX_MTU), 8, NULL);
+			  BT_ISO_SDU_BUF_SIZE(CONFIG_BT_ISO_TX_MTU),
+			  CONFIG_BT_CONN_TX_USER_DATA_SIZE, NULL);
 #endif /* CONFIG_BT_ISO_TX_FRAG_COUNT > 0 */
 #endif /* CONFIG_BT_ISO_UNICAST || CONFIG_BT_ISO_BROADCAST */
 
@@ -803,7 +805,10 @@ int bt_iso_chan_send(struct bt_iso_chan *chan, struct net_buf *buf,
 								     BT_ISO_DATA_VALID));
 	}
 
-	return bt_conn_send_cb(iso_conn, buf, bt_iso_send_cb, NULL);
+	return bt_conn_send_iso_cb(iso_conn,
+				   buf,
+				   bt_iso_send_cb,
+				   ts != BT_ISO_TIMESTAMP_NONE);
 }
 
 #if defined(CONFIG_BT_ISO_CENTRAL) || defined(CONFIG_BT_ISO_BROADCASTER)
@@ -985,6 +990,7 @@ void hci_le_cis_established(struct net_buf *buf)
 
 	CHECKIF(iso->type != BT_CONN_TYPE_ISO) {
 		LOG_DBG("Invalid connection type %u", iso->type);
+		bt_conn_unref(iso);
 		return;
 	}
 
@@ -1089,6 +1095,22 @@ int bt_iso_server_register(struct bt_iso_server *server)
 	LOG_DBG("%p", server);
 
 	iso_server = server;
+
+	return 0;
+}
+
+int bt_iso_server_unregister(struct bt_iso_server *server)
+{
+	CHECKIF(!server) {
+		LOG_DBG("Invalid parameter: server %p", server);
+		return -EINVAL;
+	}
+
+	if (iso_server != server) {
+		return -EINVAL;
+	}
+
+	iso_server = NULL;
 
 	return 0;
 }
@@ -1230,6 +1252,8 @@ void hci_le_cis_req(struct net_buf *buf)
 		if (err != 0) {
 			LOG_ERR("Failed to reject CIS");
 		}
+
+		bt_conn_unref(acl);
 		return;
 	}
 
@@ -1253,6 +1277,7 @@ void hci_le_cis_req(struct net_buf *buf)
 	err = iso_accept(acl, iso);
 	if (err) {
 		LOG_DBG("App rejected ISO %d", err);
+		bt_iso_cleanup_acl(iso);
 		bt_conn_unref(iso);
 		hci_le_reject_cis(cis_handle,
 				  BT_HCI_ERR_INSUFFICIENT_RESOURCES);
@@ -1265,6 +1290,7 @@ void hci_le_cis_req(struct net_buf *buf)
 
 	err = hci_le_accept_cis(cis_handle);
 	if (err) {
+		bt_iso_cleanup_acl(iso);
 		bt_conn_unref(iso);
 		hci_le_reject_cis(cis_handle,
 				  BT_HCI_ERR_INSUFFICIENT_RESOURCES);
@@ -1345,9 +1371,9 @@ static void bt_iso_remove_data_path(struct bt_conn *iso)
 
 		/* Only remove one data path for BIS as per the spec */
 		if (tx_qos) {
-			dir = BT_HCI_DATAPATH_DIR_HOST_TO_CTLR;
+			dir = BIT(BT_HCI_DATAPATH_DIR_HOST_TO_CTLR);
 		} else {
-			dir = BT_HCI_DATAPATH_DIR_CTLR_TO_HOST;
+			dir = BIT(BT_HCI_DATAPATH_DIR_CTLR_TO_HOST);
 		}
 
 		(void)hci_le_remove_iso_data_path(iso, dir);
@@ -1358,10 +1384,8 @@ static void bt_iso_remove_data_path(struct bt_conn *iso)
 		/* TODO: Check which has been setup first to avoid removing
 		 * data paths that are not setup
 		 */
-		(void)hci_le_remove_iso_data_path(iso,
-						  BT_HCI_DATAPATH_DIR_CTLR_TO_HOST);
-		(void)hci_le_remove_iso_data_path(iso,
-						  BT_HCI_DATAPATH_DIR_HOST_TO_CTLR);
+		(void)hci_le_remove_iso_data_path(iso, BIT(BT_HCI_DATAPATH_DIR_HOST_TO_CTLR));
+		(void)hci_le_remove_iso_data_path(iso, BIT(BT_HCI_DATAPATH_DIR_CTLR_TO_HOST));
 	} else {
 		__ASSERT(false, "Invalid iso.type: %u", type);
 	}

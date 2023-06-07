@@ -15,6 +15,7 @@ from itertools import islice
 import logging
 import copy
 import shutil
+import random
 
 logger = logging.getLogger('twister')
 logger.setLevel(logging.DEBUG)
@@ -175,6 +176,8 @@ class TestPlan:
         for _, ts in self.testsuites.items():
             self.scenarios.append(ts.id)
 
+        self.report_duplicates()
+
         self.parse_configuration(config_file=self.env.test_config)
         self.add_configurations()
 
@@ -251,6 +254,17 @@ class TestPlan:
         else:
             self.instances = OrderedDict(sorted(self.instances.items()))
 
+        if self.options.shuffle_tests:
+            seed_value = int.from_bytes(os.urandom(8), byteorder="big")
+            if self.options.shuffle_tests_seed is not None:
+                seed_value = self.options.shuffle_tests_seed
+
+            logger.info(f"Shuffle tests with seed: {seed_value}")
+            random.seed(seed_value)
+            temp_list = list(self.instances.items())
+            random.shuffle(temp_list)
+            self.instances = OrderedDict(temp_list)
+
         # Do calculation based on what is actually going to be run and evaluated
         # at runtime, ignore the cases we already know going to be skipped.
         # This fixes an issue where some sets would get majority of skips and
@@ -289,10 +303,7 @@ class TestPlan:
 
 
     def report(self):
-        if self.options.list_test_duplicates:
-            self.report_duplicates()
-            return 0
-        elif self.options.test_tree:
+        if self.options.test_tree:
             self.report_test_tree()
             return 0
         elif self.options.list_tests:
@@ -307,13 +318,14 @@ class TestPlan:
     def report_duplicates(self):
         dupes = [item for item, count in collections.Counter(self.scenarios).items() if count > 1]
         if dupes:
-            print("Tests with duplicate identifiers:")
+            msg = "Duplicated test scenarios found:\n"
             for dupe in dupes:
-                print("- {}".format(dupe))
+                msg += ("- {} found in:\n".format(dupe))
                 for dc in self.get_testsuite(dupe):
-                    print("  - {}".format(dc.name))
+                    msg += ("  - {}\n".format(dc.yamlfile))
+            raise TwisterRuntimeError(msg)
         else:
-            print("No duplicates found.")
+            logger.debug("No duplicates found.")
 
     def report_tag_list(self):
         tags = set()
@@ -492,6 +504,16 @@ class TestPlan:
 
                 suite_yaml_path = os.path.join(dirpath, filename)
                 suite_path = os.path.dirname(suite_yaml_path)
+
+                for alt_config_root in self.env.alt_config_root:
+                    alt_config = os.path.join(os.path.abspath(alt_config_root),
+                                              os.path.relpath(suite_path, root),
+                                              filename)
+                    if os.path.exists(alt_config):
+                        logger.info("Using alternative configuration from %s" %
+                                    os.path.normpath(alt_config))
+                        suite_yaml_path = alt_config
+                        break
 
                 try:
                     parsed_data = TwisterConfigParser(suite_yaml_path, self.suite_schema)
@@ -673,10 +695,8 @@ class TestPlan:
                 b = set(filter(lambda item: item.name in ts.platform_allow, self.platforms))
                 c = a.intersection(b)
                 if not c:
-                    _platform_scope = list(filter(lambda item: item.name in ts.platform_allow, \
+                    platform_scope = list(filter(lambda item: item.name in ts.platform_allow, \
                                              self.platforms))
-                    if len(_platform_scope) > 0:
-                        platform_scope = _platform_scope[:1]
 
 
             # list of instances per testsuite, aka configurations.
@@ -777,6 +797,10 @@ class TestPlan:
                 if plat.ram < ts.min_ram:
                     instance.add_filter("Not enough RAM", Filters.PLATFORM)
 
+                if ts.harness:
+                    if ts.harness == 'robot' and plat.simulation != 'renode':
+                        instance.add_filter("No robot support for the selected platform", Filters.SKIP)
+
                 if ts.depends_on:
                     dep_intersection = ts.depends_on.intersection(set(plat.supported))
                     if dep_intersection != set(ts.depends_on):
@@ -869,16 +893,7 @@ class TestPlan:
 
         filtered_instances = list(filter(lambda item:  item.status == "filtered", self.instances.values()))
         for filtered_instance in filtered_instances:
-            # If integration mode is on all skips on integration_platforms are treated as errors.
-            if self.options.integration and filtered_instance.platform.name in filtered_instance.testsuite.integration_platforms \
-                and "quarantine" not in filtered_instance.reason.lower():
-                # Do not treat this as error if filter type is command line
-                filters = {t['type'] for t in filtered_instance.filters}
-                if Filters.CMD_LINE in filters or Filters.SKIP in filters:
-                    continue
-                filtered_instance.status = "error"
-                filtered_instance.reason += " but is one of the integration platforms"
-                self.instances[filtered_instance.name] = filtered_instance
+            change_skip_to_error_if_integration(self.options, filtered_instance)
 
             filtered_instance.add_missing_case_status(filtered_instance.status)
 
@@ -952,3 +967,15 @@ class TestPlan:
         instance.build_dir = link_path
 
         self.link_dir_counter += 1
+
+
+def change_skip_to_error_if_integration(options, instance):
+    ''' If integration mode is on all skips on integration_platforms are treated as errors.'''
+    if options.integration and instance.platform.name in instance.testsuite.integration_platforms \
+        and "quarantine" not in instance.reason.lower():
+        # Do not treat this as error if filter type is command line
+        filters = {t['type'] for t in instance.filters}
+        if Filters.CMD_LINE in filters or Filters.SKIP in filters:
+            return
+        instance.status = "error"
+        instance.reason += " but is one of the integration platforms"

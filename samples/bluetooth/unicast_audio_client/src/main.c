@@ -19,6 +19,7 @@
 
 static void start_scan(void);
 
+static struct bt_bap_unicast_client_cb unicast_client_cbs;
 static struct bt_conn *default_conn;
 static struct k_work_delayable audio_send_work;
 static struct bt_bap_unicast_group *unicast_group;
@@ -28,7 +29,8 @@ static struct audio_sink {
 } sinks[CONFIG_BT_BAP_UNICAST_CLIENT_ASE_SNK_COUNT];
 static struct bt_bap_ep *sources[CONFIG_BT_BAP_UNICAST_CLIENT_ASE_SRC_COUNT];
 NET_BUF_POOL_FIXED_DEFINE(tx_pool, CONFIG_BT_BAP_UNICAST_CLIENT_ASE_SNK_COUNT,
-			  CONFIG_BT_ISO_TX_MTU + BT_ISO_CHAN_SEND_RESERVE, 8, NULL);
+			  BT_ISO_SDU_BUF_SIZE(CONFIG_BT_ISO_TX_MTU),
+			  CONFIG_BT_CONN_TX_USER_DATA_SIZE, NULL);
 
 static struct bt_bap_stream streams[CONFIG_BT_BAP_UNICAST_CLIENT_ASE_SNK_COUNT +
 				      CONFIG_BT_BAP_UNICAST_CLIENT_ASE_SRC_COUNT];
@@ -366,51 +368,65 @@ static void print_codec_capabilities(const struct bt_codec *codec)
 static bool check_audio_support_and_connect(struct bt_data *data,
 					    void *user_data)
 {
+	struct net_buf_simple ascs_svc_data;
 	bt_addr_le_t *addr = user_data;
-	int i;
+	uint8_t announcement_type;
+	uint32_t audio_contexts;
+	struct bt_uuid *uuid;
+	uint16_t uuid_val;
+	uint8_t meta_len;
+	size_t min_size;
+	int err;
 
 	printk("[AD]: %u data_len %u\n", data->type, data->data_len);
 
-	switch (data->type) {
-	case BT_DATA_UUID16_SOME:
-	case BT_DATA_UUID16_ALL:
-		if (data->data_len % sizeof(uint16_t) != 0U) {
-			printk("AD malformed\n");
-			return true; /* Continue */
-		}
-
-		for (i = 0; i < data->data_len; i += sizeof(uint16_t)) {
-			struct bt_uuid *uuid;
-			uint16_t uuid_val;
-			int err;
-
-			memcpy(&uuid_val, &data->data[i], sizeof(uuid_val));
-			uuid = BT_UUID_DECLARE_16(sys_le16_to_cpu(uuid_val));
-			if (bt_uuid_cmp(uuid, BT_UUID_ASCS) != 0) {
-				continue;
-			}
-
-			err = bt_le_scan_stop();
-			if (err != 0) {
-				printk("Failed to stop scan: %d\n", err);
-				return false;
-			}
-
-			printk("Audio server found; connecting\n");
-
-			err = bt_conn_le_create(addr, BT_CONN_LE_CREATE_CONN,
-						BT_LE_CONN_PARAM_DEFAULT,
-						&default_conn);
-			if (err != 0) {
-				printk("Create conn to failed (%u)\n", err);
-				start_scan();
-			}
-
-			return false; /* Stop parsing */
-		}
+	if (data->type != BT_DATA_SVC_DATA16) {
+		return true; /* Continue parsing to next AD data type */
 	}
 
-	return true;
+	if (data->data_len < sizeof(uuid_val)) {
+		printk("AD invalid size %u\n", data->data_len);
+		return true; /* Continue parsing to next AD data type */
+	}
+
+	net_buf_simple_init_with_data(&ascs_svc_data, (void *)data->data,
+				      data->data_len);
+
+	uuid_val = net_buf_simple_pull_le16(&ascs_svc_data);
+	uuid = BT_UUID_DECLARE_16(sys_le16_to_cpu(uuid_val));
+	if (bt_uuid_cmp(uuid, BT_UUID_ASCS) != 0) {
+		/* We are looking for the ASCS service data */
+		return true; /* Continue parsing to next AD data type */
+	}
+
+	min_size = sizeof(announcement_type) + sizeof(audio_contexts) + sizeof(meta_len);
+	if (ascs_svc_data.len < min_size) {
+		printk("AD invalid size %u\n", data->data_len);
+		return false; /* Stop parsing */
+	}
+
+	announcement_type = net_buf_simple_pull_u8(&ascs_svc_data);
+	audio_contexts = net_buf_simple_pull_le32(&ascs_svc_data);
+	meta_len = net_buf_simple_pull_u8(&ascs_svc_data);
+
+	err = bt_le_scan_stop();
+	if (err != 0) {
+		printk("Failed to stop scan: %d\n", err);
+		return false; /* Stop parsing */
+	}
+
+	printk("Audio server found with type %u, contexts 0x%08x and meta_len %u; connecting\n",
+	       announcement_type, audio_contexts, meta_len);
+
+	err = bt_conn_le_create(addr, BT_CONN_LE_CREATE_CONN,
+				BT_LE_CONN_PARAM_DEFAULT,
+				&default_conn);
+	if (err != 0) {
+		printk("Create conn to failed (%u)\n", err);
+		start_scan();
+	}
+
+	return false; /* Stop parsing */
 }
 
 static void device_found(const bt_addr_le_t *addr, int8_t rssi, uint8_t type,
@@ -534,95 +550,67 @@ static struct bt_bap_stream_ops stream_ops = {
 	.recv = stream_recv
 };
 
-static void add_remote_source(struct bt_bap_ep *ep, uint8_t index)
+static void add_remote_source(struct bt_bap_ep *ep)
 {
-	printk("Sink #%u: ep %p\n", index, ep);
-
-	if (index > ARRAY_SIZE(sources)) {
-		printk("Could not add source ep[%u]\n", index);
-		return;
+	for (size_t i = 0U; i < ARRAY_SIZE(sources); i++) {
+		if (sources[i] == NULL) {
+			printk("Source #%zu: ep %p\n", i, ep);
+			sources[i] = ep;
+			return;
+		}
 	}
 
-	sources[index] = ep;
+	printk("Could not add source ep\n");
 }
 
-static void add_remote_sink(struct bt_bap_ep *ep, uint8_t index)
+static void add_remote_sink(struct bt_bap_ep *ep)
 {
-	printk("Sink #%u: ep %p\n", index, ep);
-
-	if (index > ARRAY_SIZE(sinks)) {
-		printk("Could not add sink ep[%u]\n", index);
-		return;
+	for (size_t i = 0U; i < ARRAY_SIZE(sinks); i++) {
+		if (sinks[i].ep == NULL) {
+			printk("Sink #%zu: ep %p\n", i, ep);
+			sinks[i].ep = ep;
+			return;
+		}
 	}
 
-	sinks[index].ep = ep;
+	printk("Could not add sink ep\n");
 }
 
-static void print_remote_codec(struct bt_codec *codec_capabilities, int index,
-			       enum bt_audio_dir dir)
+static void print_remote_codec(const struct bt_codec *codec_capabilities, enum bt_audio_dir dir)
 {
-	printk("#%u: codec_capabilities %p dir 0x%02x\n",
-	       index, codec_capabilities, dir);
+	printk("codec_capabilities %p dir 0x%02x\n", codec_capabilities, dir);
 
 	print_codec_capabilities(codec_capabilities);
 }
 
-static void discover_sinks_cb(struct bt_conn *conn, struct bt_codec *codec, struct bt_bap_ep *ep,
-			      struct bt_bap_unicast_client_discover_params *params)
+static void discover_sinks_cb(struct bt_conn *conn, int err, enum bt_audio_dir dir)
 {
-	if (params->err != 0 && params->err != BT_ATT_ERR_ATTRIBUTE_NOT_FOUND) {
-		printk("Discovery failed: %d\n", params->err);
+	if (err != 0 && err != BT_ATT_ERR_ATTRIBUTE_NOT_FOUND) {
+		printk("Discovery failed: %d\n", err);
 		return;
 	}
 
-	if (codec != NULL) {
-		print_remote_codec(codec, params->num_caps, params->dir);
-		return;
-	}
-
-	if (ep != NULL) {
-		add_remote_sink(ep, params->num_eps);
-
-		return;
-	}
-
-	if (params->err == BT_ATT_ERR_ATTRIBUTE_NOT_FOUND) {
+	if (err == BT_ATT_ERR_ATTRIBUTE_NOT_FOUND) {
 		printk("Discover sinks completed without finding any sink ASEs\n");
 	} else {
-		printk("Discover sinks complete: err %d\n", params->err);
+		printk("Discover sinks complete: err %d\n", err);
 	}
-
-	(void)memset(params, 0, sizeof(*params));
 
 	k_sem_give(&sem_sinks_discovered);
 }
 
-static void discover_sources_cb(struct bt_conn *conn, struct bt_codec *codec, struct bt_bap_ep *ep,
-				struct bt_bap_unicast_client_discover_params *params)
+static void discover_sources_cb(struct bt_conn *conn, int err, enum bt_audio_dir dir)
 {
-	if (params->err != 0 && params->err != BT_ATT_ERR_ATTRIBUTE_NOT_FOUND) {
-		printk("Discovery failed: %d\n", params->err);
+	if (err != 0 && err != BT_ATT_ERR_ATTRIBUTE_NOT_FOUND) {
+		printk("Discovery failed: %d\n", err);
 		return;
 	}
 
-	if (codec != NULL) {
-		print_remote_codec(codec, params->num_caps, params->dir);
-		return;
-	}
-
-	if (ep != NULL) {
-		add_remote_source(ep, params->num_eps);
-
-		return;
-	}
-
-	if (params->err == BT_ATT_ERR_ATTRIBUTE_NOT_FOUND) {
+	if (err == BT_ATT_ERR_ATTRIBUTE_NOT_FOUND) {
 		printk("Discover sinks completed without finding any source ASEs\n");
 	} else {
-		printk("Discover sources complete: err %d\n", params->err);
+		printk("Discover sources complete: err %d\n", err);
 	}
-
-	(void)memset(params, 0, sizeof(*params));
 
 	k_sem_give(&sem_sources_discovered);
 }
@@ -709,9 +697,25 @@ static void available_contexts_cb(struct bt_conn *conn,
 	printk("snk ctx %u src ctx %u\n", snk_ctx, src_ctx);
 }
 
-const struct bt_bap_unicast_client_cb unicast_client_cbs = {
+static void pac_record_cb(struct bt_conn *conn, enum bt_audio_dir dir, const struct bt_codec *codec)
+{
+	print_remote_codec(codec, dir);
+}
+
+static void endpoint_cb(struct bt_conn *conn, enum bt_audio_dir dir, struct bt_bap_ep *ep)
+{
+	if (dir == BT_AUDIO_DIR_SOURCE) {
+		add_remote_source(ep);
+	} else if (dir == BT_AUDIO_DIR_SINK) {
+		add_remote_sink(ep);
+	}
+}
+
+static struct bt_bap_unicast_client_cb unicast_client_cbs = {
 	.location = unicast_client_location_cb,
 	.available_contexts = available_contexts_cb,
+	.pac_record = pac_record_cb,
+	.endpoint = endpoint_cb,
 };
 
 static int init(void)
@@ -774,13 +778,11 @@ static int scan_and_connect(void)
 
 static int discover_sinks(void)
 {
-	static struct bt_bap_unicast_client_discover_params params;
 	int err;
 
-	params.func = discover_sinks_cb;
-	params.dir = BT_AUDIO_DIR_SINK;
+	unicast_client_cbs.discover = discover_sinks_cb;
 
-	err = bt_bap_unicast_client_discover(default_conn, &params);
+	err = bt_bap_unicast_client_discover(default_conn, BT_AUDIO_DIR_SINK);
 	if (err != 0) {
 		printk("Failed to discover sinks: %d\n", err);
 		return err;
@@ -797,13 +799,11 @@ static int discover_sinks(void)
 
 static int discover_sources(void)
 {
-	static struct bt_bap_unicast_client_discover_params params;
 	int err;
 
-	params.func = discover_sources_cb;
-	params.dir = BT_AUDIO_DIR_SOURCE;
+	unicast_client_cbs.discover = discover_sources_cb;
 
-	err = bt_bap_unicast_client_discover(default_conn, &params);
+	err = bt_bap_unicast_client_discover(default_conn, BT_AUDIO_DIR_SOURCE);
 	if (err != 0) {
 		printk("Failed to discover sources: %d\n", err);
 		return err;
@@ -1017,23 +1017,25 @@ static void reset_data(void)
 
 	configured_sink_stream_count = 0;
 	configured_source_stream_count = 0;
+	memset(sinks, 0, sizeof(sinks));
+	memset(sources, 0, sizeof(sources));
 }
 
-void main(void)
+int main(void)
 {
 	int err;
 
 	printk("Initializing\n");
 	err = init();
 	if (err != 0) {
-		return;
+		return 0;
 	}
 	printk("Initialized\n");
 
 	err = bt_bap_unicast_client_register_cb(&unicast_client_cbs);
 	if (err != 0) {
 		printk("Failed to register client callbacks: %d", err);
-		return;
+		return 0;
 	}
 
 	while (true) {
@@ -1042,77 +1044,79 @@ void main(void)
 		printk("Waiting for connection\n");
 		err = scan_and_connect();
 		if (err != 0) {
-			return;
+			return 0;
 		}
 		printk("Connected\n");
 
 		printk("Discovering sinks\n");
 		err = discover_sinks();
 		if (err != 0) {
-			return;
+			return 0;
 		}
 		printk("Sinks discovered\n");
 
 		printk("Discovering sources\n");
 		err = discover_sources();
 		if (err != 0) {
-			return;
+			return 0;
 		}
 		printk("Sources discovered\n");
 
 		printk("Configuring streams\n");
 		err = configure_streams();
 		if (err != 0) {
-			return;
+			return 0;
 		}
 
 		if (configured_stream_count == 0U) {
 			printk("No streams were configured\n");
-			return;
+			return 0;
 		}
 
 		printk("Creating unicast group\n");
 		err = create_group();
 		if (err != 0) {
-			return;
+			return 0;
 		}
 		printk("Unicast group created\n");
 
 		printk("Setting stream QoS\n");
 		err = set_stream_qos();
 		if (err != 0) {
-			return;
+			return 0;
 		}
 		printk("Stream QoS Set\n");
 
 		printk("Enabling streams\n");
 		err = enable_streams();
 		if (err != 0) {
-			return;
+			return 0;
 		}
 		printk("Streams enabled\n");
 
 		printk("Starting streams\n");
 		err = start_streams();
 		if (err != 0) {
-			return;
+			return 0;
 		}
 		printk("Streams started\n");
 
-		/* Start send timer */
-		k_work_schedule(&audio_send_work, K_MSEC(0));
+		if (CONFIG_BT_BAP_UNICAST_CLIENT_ASE_SRC_COUNT > 0) {
+			/* Start send timer */
+			k_work_schedule(&audio_send_work, K_MSEC(0));
+		}
 
 		/* Wait for disconnect */
 		err = k_sem_take(&sem_disconnected, K_FOREVER);
 		if (err != 0) {
 			printk("failed to take sem_disconnected (err %d)\n", err);
-			return;
+			return 0;
 		}
 
 		printk("Deleting group\n");
 		err = delete_group();
 		if (err != 0) {
-			return;
+			return 0;
 		}
 		printk("Group deleted\n");
 	}

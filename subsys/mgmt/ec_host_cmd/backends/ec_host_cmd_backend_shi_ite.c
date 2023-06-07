@@ -512,11 +512,10 @@ struct ec_host_cmd_backend *ec_host_cmd_backend_get_shi_ite(void)
 	return &ec_host_cmd_shi_ite;
 }
 
-#if DT_NODE_EXISTS(DT_CHOSEN(zephyr_host_cmd_backend))
-static int host_cmd_init(const struct device *arg)
+#if DT_NODE_EXISTS(DT_CHOSEN(zephyr_host_cmd_shi_backend)) &&                                      \
+	defined(CONFIG_EC_HOST_CMD_INITIALIZE_AT_BOOT)
+static int host_cmd_init(void)
 {
-	ARG_UNUSED(arg);
-
 	ec_host_cmd_init(ec_host_cmd_backend_get_shi_ite());
 	return 0;
 }

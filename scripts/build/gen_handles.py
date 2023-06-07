@@ -36,7 +36,6 @@ from elf_parser import ZephyrElf
 # This is needed to load edt.pickle files.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..',
                                 'dts', 'python-devicetree', 'src'))
-from devicetree import edtlib  # pylint: disable=unused-import
 
 def parse_args():
     global args
@@ -104,8 +103,13 @@ def c_handle_array(dev, handles, extra_support_handles=0):
         *(extra_support_handles * ['DEVICE_HANDLE_NULL']),
         'DEVICE_HANDLE_ENDS',
     ]
+    ctype = 'const Z_DECL_ALIGN(device_handle_t) __attribute__((__section__(".__device_handles_pass2")))'
     return [
-        'const Z_DECL_ALIGN(device_handle_t) __attribute__((__section__(".__device_handles_pass2")))',
+        # The `extern` line pretends this was first declared in some .h
+        # file to silence "should it be static?" warnings in some
+        # compilers and static analyzers.
+        'extern {:s} {:s}[{:d}];'.format(ctype, dev.ordinals.sym.name, len(handles)),
+        ctype,
         '{:s}[] = {{ {:s} }};'.format(dev.ordinals.sym.name, ', '.join(handles)),
     ]
 
@@ -117,6 +121,13 @@ def main():
         edt = pickle.load(f)
 
     parsed_elf = ZephyrElf(args.kernel, edt, args.start_symbol)
+    if parsed_elf.relocatable:
+        # While relocatable elf files will load cleanly, the pointers pulled from
+        # the symbol table are invalid (as expected, because the structures have not
+        # yet been allocated addresses). Fixing this will require iterating over
+        # the relocation sections to find the symbols those pointers will end up
+        # referring to.
+        sys.exit('Relocatable elf files are not yet supported')
 
     if args.output_graphviz:
         # Try and output the dependency tree

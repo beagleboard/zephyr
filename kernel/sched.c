@@ -18,6 +18,7 @@
 #include <zephyr/sys/atomic.h>
 #include <zephyr/sys/math_extras.h>
 #include <zephyr/timing/timing.h>
+#include <zephyr/sys/util.h>
 
 LOG_MODULE_DECLARE(os, CONFIG_KERNEL_LOG_LEVEL);
 
@@ -352,10 +353,6 @@ static ALWAYS_INLINE struct k_thread *next_up(void)
 	 * "ready", it means "is _current already added back to the
 	 * queue such that we don't want to re-add it".
 	 */
-	if (is_aborting(_current)) {
-		end_thread(_current);
-	}
-
 	bool queued = z_is_thread_queued(_current);
 	bool active = !z_is_thread_prevented_from_running(_current);
 
@@ -412,8 +409,8 @@ static void flag_ipi(void)
 
 #ifdef CONFIG_TIMESLICING
 
-static int slice_ticks;
-static int slice_max_prio;
+static int slice_ticks = DIV_ROUND_UP(CONFIG_TIMESLICE_SIZE * Z_HZ_ticks, Z_HZ_ms);
+static int slice_max_prio = CONFIG_TIMESLICE_PRIORITY;
 static struct _timeout slice_timeouts[CONFIG_MP_MAX_NUM_CPUS];
 static bool slice_expired[CONFIG_MP_MAX_NUM_CPUS];
 
@@ -484,12 +481,6 @@ void k_sched_time_slice_set(int32_t slice, int prio)
 {
 	LOCKED(&sched_spinlock) {
 		slice_ticks = k_ms_to_ticks_ceil32(slice);
-		if (IS_ENABLED(CONFIG_TICKLESS_KERNEL) && slice > 0) {
-			/* It's not possible to reliably set a 1-tick
-			 * timeout if ticks aren't regular.
-			 */
-			slice_ticks = MAX(2, slice_ticks);
-		}
 		slice_max_prio = prio;
 		z_reset_time_slice(_current);
 	}
@@ -1091,6 +1082,10 @@ void *z_get_next_switch_handle(void *interrupted)
 	LOCKED(&sched_spinlock) {
 		struct k_thread *old_thread = _current, *new_thread;
 
+		if (is_aborting(_current)) {
+			end_thread(_current);
+		}
+
 		if (IS_ENABLED(CONFIG_SMP)) {
 			old_thread->switch_handle = NULL;
 		}
@@ -1100,7 +1095,7 @@ void *z_get_next_switch_handle(void *interrupted)
 
 		if (old_thread != new_thread) {
 			update_metairq_preempt(new_thread);
-			wait_for_switch(new_thread);
+			z_sched_switch_spin(new_thread);
 			arch_cohere_stacks(old_thread, interrupted, new_thread);
 
 			_current_cpu->swap_ok = 0;
@@ -1306,18 +1301,11 @@ void init_ready_q(struct _ready_q *rq)
 void z_sched_init(void)
 {
 #ifdef CONFIG_SCHED_CPU_MASK_PIN_ONLY
-	unsigned int num_cpus = arch_num_cpus();
-
-	for (int i = 0; i < num_cpus; i++) {
+	for (int i = 0; i < CONFIG_MP_MAX_NUM_CPUS; i++) {
 		init_ready_q(&_kernel.cpus[i].ready_q);
 	}
 #else
 	init_ready_q(&_kernel.ready_q);
-#endif
-
-#ifdef CONFIG_TIMESLICING
-	k_sched_time_slice_set(CONFIG_TIMESLICE_SIZE,
-		CONFIG_TIMESLICE_PRIORITY);
 #endif
 }
 
@@ -1783,6 +1771,13 @@ void z_thread_abort(struct k_thread *thread)
 			k_spin_unlock(&sched_spinlock, key);
 			while (is_aborting(thread)) {
 			}
+
+			/* Now we know it's dying, but not necessarily
+			 * dead.  Wait for the switch to happen!
+			 */
+			key = k_spin_lock(&sched_spinlock);
+			z_sched_switch_spin(thread);
+			k_spin_unlock(&sched_spinlock, key);
 		} else if (active) {
 			/* Threads can join */
 			add_to_waitq_locked(_current, &thread->join_queue);
@@ -1818,6 +1813,7 @@ int z_impl_k_thread_join(struct k_thread *thread, k_timeout_t timeout)
 	SYS_PORT_TRACING_OBJ_FUNC_ENTER(k_thread, join, thread, timeout);
 
 	if ((thread->base.thread_state & _THREAD_DEAD) != 0U) {
+		z_sched_switch_spin(thread);
 		ret = 0;
 	} else if (K_TIMEOUT_EQ(timeout, K_NO_WAIT)) {
 		ret = -EBUSY;

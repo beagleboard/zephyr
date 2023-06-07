@@ -31,6 +31,9 @@
 
 	aliases {
 		spi-flash0 = &mx25lm51245;
+		die-temp0 = &die_temp;
+		volt-sensor0 = &vref;
+		volt-sensor1 = &vbat;
 	};
 };
 
@@ -204,6 +207,10 @@
 	status = "okay";
 };
 
+&die_temp {
+	status = "okay";
+};
+
 &spi3 {
 	pinctrl-0 = <&spi3_sck_pg9 &spi3_mosi_pb5 &spi3_miso_pb4>;
 	pinctrl-names = "default";
@@ -230,4 +237,12 @@ zephyr_udc0: &usb {
 	pinctrl-names = "default";
 
 	cd-gpios = <&gpiof 2 GPIO_ACTIVE_LOW>;
+};
+
+&vref {
+	status = "okay";
+};
+
+&vbat {
+	status = "okay";
 };

@@ -2,6 +2,7 @@
 
 # Copyright (c) 2016 Intel Corporation.
 # Copyright (c) 2021 Nordic Semiconductor
+# Copyright (c) 2023 Arm Limited (or its affiliates). All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 menu "IP stack"
@@ -494,6 +495,17 @@ config NET_TCP_RECV_QUEUE_TIMEOUT
 	  SEQ 2. But if we receive SEQs 5,4,3,7 then the SEQ 7 is discarded
 	  because the list would not be sequential as number 6 is be missing.
 
+config NET_TCP_PKT_ALLOC_TIMEOUT
+	int "How long to wait for a TCP packet allocation (in ms)"
+	depends on NET_TCP
+	default 100
+	range 10 1000
+	help
+	  The TCP network stack allocates packets from the buffers and the
+	  allocation can take some time depending on the situation.
+	  This value indicates how long the stack should wait for the packet to
+	  be allocated, before returning an internal error and trying again.
+
 config NET_TCP_WORKQ_STACK_SIZE
 	int "TCP work queue thread stack size"
 	default 1024
@@ -535,6 +547,7 @@ config NET_UDP_CHECKSUM
 
 config NET_UDP_MISSING_CHECKSUM
 	bool "Accept missing checksum (IPv4 only)"
+	default y
 	depends on NET_UDP && NET_IPV4
 	help
 	  RFC 768 states the possibility to have a missing checksum, for

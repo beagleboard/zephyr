@@ -11,3 +11,6 @@ supported:
   - arduino_gpio
   - gpio
   - watchdog
+  - i2c
+  - spi
+  - usb_device

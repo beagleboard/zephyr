@@ -8,6 +8,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/sys/dlist.h>
+#include <zephyr/sys/iterable_sections.h>
 
 #include "uvb.h"
 
@@ -316,7 +317,7 @@ static void uvb_work_handler(struct k_work *work)
 	}
 }
 
-static int uvb_init(const struct device *dev)
+static int uvb_init(void)
 {
 	STRUCT_SECTION_FOREACH(uvb_node, host) {
 		LOG_DBG("Host %p - %s", host, host->name);
