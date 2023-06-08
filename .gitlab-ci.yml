@@ -25,6 +25,8 @@ build:
     - ./ci-build-and-copy.sh freedom micropython beagleconnect_freedom ../modules/micropython/ports/zephyr
     - ./ci-prepend-mcuboot.sh freedom micropython
     - ./ci-build-and-copy.sh freedom-c5 mcuboot beagleconnect_freedom@c5 ../bootloader/mcuboot/boot/zephyr
+    - ./ci-build-and-copy.sh freedom-c5 mcumgr beagleconnect_freedom@c5 samples/subsys/mgmt/mcumgr/smp_svr
+    - ./ci-prepend-mcuboot.sh freedom-c5 mcumgr
     - ./ci-build-and-copy.sh freedom-c5 wpanusb beagleconnect_freedom@c5 ../modules/wpanusb
     - ./ci-prepend-mcuboot.sh freedom-c5 wpanusb
     - ./ci-build-and-copy.sh freedom-c5 bcfserial beagleconnect_freedom@c5 "../modules/wpanusb -- -DOVERLAY_CONFIG=overlay-bcfserial.conf -DDTC_OVERLAY_FILE=bcfserial.overlay"
