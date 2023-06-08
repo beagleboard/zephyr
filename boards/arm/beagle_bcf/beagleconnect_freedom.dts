@@ -98,16 +98,16 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 
-		/* Allocate 128 KiB for mcuboot */
+		/* Allocate 48 KiB for mcuboot */
 		boot_partition: partition@0 {
 			label = "mcuboot";
-			reg = <0x00000000 0x00020000>;
+			reg = <0x00000000 0x0000c000>;
 		};
 
-		/* Allocate 568 KiB for application (avoid touching CCFG) */
-		slot0_partition: partition@20000 {
+		/* Allocate 656 KiB for application */
+		slot0_partition: partition@c000 {
 			label = "image-0";
-			reg = <0x00020000 0x0008e000>;
+			reg = <0x0000c000 0x000a3fa8>;
 		};
 	};
 };
@@ -125,7 +125,7 @@
 	status = "okay";
 };
 
-/* Side away from battery connector (with MSP430) */
+/* mikroBUS port 1 - Side away from battery connector (with MSP430) */
 &uart0 {
 	status = "okay";
 	current-speed = <115200>;
@@ -133,7 +133,7 @@
 	pinctrl-names = "default";
 };
 
-/* Side with battery connector (with CC1352 and not MSP430) */
+/* mikroBUS port 2 - Side with battery connector (with CC1352 and not MSP430) */
 &uart1 {
 	status = "okay";
 	current-speed = <115200>;
@@ -180,22 +180,22 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 
-			/* Allocate 568 KiB for application */
+			/* Allocate 768 KiB for application */
 			slot1_partition: partition@0 {
 				label = "image-1";
-				reg = <0x00000000 0x0008e000>;
+				reg = <0x00000000 0x000c0000>;
 			};
 
-			/* Allocate 128 KiB scratch for image swap */
-			scratch_partition: partition@8e000 {
+			/* Allocate 256 KiB scratch for image swap */
+			scratch_partition: partition@c0000 {
 				label = "image-scratch";
-				reg = <0x0008e000 0x00020000>;
+				reg = <0x000c0000 0x00040000>;
 			};
 
 			/* Allocate 1 MiB storage partition */
-			storage_partition: partition@ae000 {
+			storage_partition: partition@100000 {
 				label = "storage";
-				reg = <0x000ae000 DT_SIZE_K(1024)>;
+				reg = <0x00100000 0x00100000>;
 			};
 		};
 	};

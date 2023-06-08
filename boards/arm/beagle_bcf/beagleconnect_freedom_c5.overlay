@@ -1,0 +1,55 @@
+#include <zephyr/dt-bindings/pinctrl/cc13xx_cc26xx-pinctrl.h>
+
+/* Deltas uses cc1352p1 with half the RAM */
+&sram0: memory@20000000 {
+	reg = <0x20000000 DT_SIZE_K(80)>;
+};
+
+/* Deltas uses cc1352p1 with half the flash */
+&flash0 {
+	reg = <0x0 DT_SIZE_K(352)>;
+
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		/* Allocate 48 KiB for mcuboot */
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x00000000 0x0000c000>;
+		};
+
+		/* Allocate 304 KiB for application (avoid touching CCFG) */
+		slot0_partition: partition@c000 {
+			label = "image-0";
+			reg = <0x0000c000 0x0004bfa8>;
+		};
+
+		/* CCFG registers occupy the last 88 bytes of flash */
+		ti_ccfg_partition: partition@57fa8 {
+			compatible = "zephyr,memory-region";
+			reg = <0x57fa8 88>;
+			zephyr,memory-region = "FLASH_CCFG";
+		};
+	};
+};
+
+/* UART0 pins swapped on the mikroBUS 1 header */
+&uart0 {
+	pinctrl-0 = <&uart0_rx_default &uart0_tx_default>;
+	pinctrl-1 = <&uart0_rx_swap &uart0_tx_swap>;
+	pinctrl-names = "default", "swap";
+};
+
+&pinctrl {
+	uart0_tx_swap: uart0_tx_swap {
+		pinmux = <13 IOC_PORT_MCU_UART0_RX>;
+		bias-disable;
+		input-enable;
+	};
+	uart0_rx_swap: uart0_rx_swap {
+		pinmux = <12 IOC_PORT_MCU_UART0_TX>;
+		bias-disable;
+	};
+};
