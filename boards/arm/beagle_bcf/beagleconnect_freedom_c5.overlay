@@ -1,6 +1,6 @@
 #include <zephyr/dt-bindings/pinctrl/cc13xx_cc26xx-pinctrl.h>
 
-/* Uses cc1352p1 with half the RAM */
+/* Uses cc1352p1 with 80kB, not 144kB */
 &sram0 {
 	reg = <0x20000000 DT_SIZE_K(80)>;
 };
@@ -15,16 +15,16 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 
-		/* Allocate 48 KiB for mcuboot */
+		/* Allocate 36 KiB for mcuboot */
 		boot_partition: partition@0 {
 			label = "mcuboot";
-			reg = <0x00000000 0x0000c000>;
+			reg = <0x00000000 0x00009000>;
 		};
 
-		/* Allocate 304 KiB for application (avoid touching CCFG) */
-		slot0_partition: partition@c000 {
+		/* Allocate 316 KiB for application (avoid touching CCFG) */
+		slot0_partition: partition@9000 {
 			label = "image-0";
-			reg = <0x0000c000 0x0004bfa8>;
+			reg = <0x00009000 0x0004efa8>;
 		};
 
 		/* CCFG registers occupy the last 88 bytes of flash */
