@@ -342,6 +342,8 @@ struct k_thread {
 	struct _pipe_desc pipe_desc;
 #endif
 
+	void (*fn_abort)(struct k_thread *thread);
+
 	/** arch-specifics: must always be at the end */
 	struct _thread_arch arch;
 };
