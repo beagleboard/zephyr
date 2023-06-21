@@ -1,8 +1,5 @@
 image: zephyrprojectrtos/zephyr-build:v0.24.7
 
-variables:
-  ZEPHYR_BASE: "/builds/beagleconnect/zephyr/zephyr"
-
 build:
   stage: build
   script:
