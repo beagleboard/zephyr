@@ -1,5 +1,8 @@
 image: zephyrprojectrtos/zephyr-build:v0.24.7
 
+variables:
+  ZEPHYR_BASE: "$CI_BUILDS_DIR"
+
 build:
   stage: build
   script:
