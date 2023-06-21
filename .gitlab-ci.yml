@@ -1,12 +1,10 @@
 image: zephyrprojectrtos/zephyr-build:v0.24.7
 
-variables:
-  ZEPHYR_BASE: "$CI_BUILDS_DIR"
-
 build:
   stage: build
   script:
     - rm -rf ../.west
+    - source ./zephyr-env.sh
     - west init -l .
     - west update
     - west zephyr-export
