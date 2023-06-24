@@ -137,6 +137,10 @@ manifest:
       remote: beagleconnect
       path: modules/micropython
       revision: c40256d06fa60d6b0740a5541bc40094bbb2e053
+    - name: arduino-core
+      remote: beagleconnect
+      path: modules/arduino-core
+      revision: 0bae8e1b65e6917e8777017819420eca1e76b22b
 
   self:
     path: zephyr
