@@ -15,20 +15,17 @@ build:
     - ./ci-build-and-copy.sh play micropython beagleplay_cc1352 ../modules/micropython/ports/zephyr
     - cp boards/arm/beagle_play_cc1352/cc2538-bsl.py build/play/
     - ./ci-build-and-copy.sh freedom blinky beagleconnect_freedom samples/basic/blinky
-    - ./ci-build-and-copy.sh freedom wpanusb beagleconnect_freedom ../modules/wpanusb
-    - ./ci-build-and-copy.sh freedom sensortest beagleconnect_freedom samples/boards/beagleconnect_freedom/sensortest
     - ./ci-build-and-copy.sh freedom mcuboot beagleconnect_freedom ../bootloader/mcuboot/boot/zephyr
-    - ./ci-build-and-copy.sh freedom mcumgr beagleconnect_freedom samples/subsys/mgmt/mcumgr/smp_svr
-    - ./ci-prepend-mcuboot.sh freedom mcumgr
-    - ./ci-build-and-copy.sh freedom micropython beagleconnect_freedom ../modules/micropython/ports/zephyr
-    - ./ci-prepend-mcuboot.sh freedom micropython
+    - ./ci-build-and-copy.sh freedom mcumgr beagleconnect_freedom samples/subsys/mgmt/mcumgr/smp_svr mcuboot
+    - ./ci-build-and-copy.sh freedom sensortest beagleconnect_freedom samples/boards/beagleconnect_freedom/sensortest mcuboot
+    - ./ci-build-and-copy.sh freedom wpanusb beagleconnect_freedom ../modules/wpanusb mcuboot
+    - ./ci-build-and-copy.sh freedom micropython beagleconnect_freedom ../modules/micropython/ports/zephyr mcuboot
+    - ./ci-build-and-copy.sh freedom-c5 blinky beagleconnect_freedom@c5 samples/basic/blinky
     - ./ci-build-and-copy.sh freedom-c5 mcuboot beagleconnect_freedom@c5 ../bootloader/mcuboot/boot/zephyr
-    - ./ci-build-and-copy.sh freedom-c5 mcumgr beagleconnect_freedom@c5 samples/subsys/mgmt/mcumgr/smp_svr
-    - ./ci-prepend-mcuboot.sh freedom-c5 mcumgr
-    - ./ci-build-and-copy.sh freedom-c5 wpanusb beagleconnect_freedom@c5 ../modules/wpanusb
-    - ./ci-prepend-mcuboot.sh freedom-c5 wpanusb
-    - ./ci-build-and-copy.sh freedom-c5 bcfserial beagleconnect_freedom@c5 "../modules/wpanusb -- -DOVERLAY_CONFIG=overlay-bcfserial.conf -DDTC_OVERLAY_FILE=bcfserial.overlay"
-    - ./ci-prepend-mcuboot.sh freedom-c5 bcfserial
+    - ./ci-build-and-copy.sh freedom-c5 mcumgr beagleconnect_freedom@c5 samples/subsys/mgmt/mcumgr/smp_svr mcuboot
+    - ./ci-build-and-copy.sh freedom-c5 sensortest beagleconnect_freedom@c5 samples/boards/beagleconnect_freedom/sensortest mcuboot
+    - ./ci-build-and-copy.sh freedom-c5 wpanusb beagleconnect_freedom@c5 ../modules/wpanusb mcuboot
+    - ./ci-build-and-copy.sh freedom-c5 bcfserial beagleconnect_freedom@c5 "../modules/wpanusb -- -DOVERLAY_CONFIG=overlay-bcfserial.conf -DDTC_OVERLAY_FILE=bcfserial.overlay" mcuboot
     - cp boards/arm/beagle_bcf/cc2538-bsl.py build/freedom/
   artifacts:
     paths:
