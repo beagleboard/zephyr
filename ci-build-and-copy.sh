@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -ex
 # ./ci-build-and-copy.sh <build_dir> <build_subdir> <board_name> <application_path> [<bootloader_to_prepend>]
 # example: ./ci-build-and-copy.sh play blinky beagleplay samples/basic/blinky mcuboot
 west build -d temp/$1/$2 -b $3 $4
