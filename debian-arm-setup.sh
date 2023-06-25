@@ -2,6 +2,7 @@
 sudo apt update
 sudo apt install --no-install-recommends -y \
     gperf \
+    gcc python3-dev \
     ccache dfu-util \
     libsdl2-dev \
     libxml2-dev libxslt1-dev libssl-dev libjpeg62-turbo-dev libmagic1 \
@@ -11,14 +12,14 @@ wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.15.1/zeph
 tar xf zephyr-sdk-0.15.1_linux-aarch64_minimal.tar.gz
 rm zephyr-sdk-0.15.1_linux-aarch64_minimal.tar.gz
 ./zephyr-sdk-0.15.1/setup.sh -t arm-zephyr-eabi -c
-west init -l .
-cd $HOME/zephyr-beagle-cc1352-sdk
 python3 -m virtualenv zephyr-beagle-cc1352-env
-echo "export ZEPHYR_TOOLCHAIN_VARIANT=zephyr" >> $HOME/zephyr-beagle-cc1352-sdk/zephyr-beagle-cc1352-env/bin/activate
-echo "export ZEPHYR_SDK_INSTALL_DIR=$HOME/zephyr-sdk-0.15.1" >> $HOME/zephyr-beagle-cc1352-sdk/zephyr-beagle-cc1352-env/bin/activate
-echo "export ZEPHYR_BASE=$HOME/zephyr-beagle-cc1352-sdk/zephyr" >> $HOME/zephyr-beagle-cc1352-sdk/zephyr-beagle-cc1352-env/bin/activate
-echo 'export PATH=$HOME/zephyr-beagle-cc1352-sdk/zephyr/scripts:$PATH' >> $HOME/zephyr-beagle-cc1352-sdk/zephyr-beagle-cc1352-env/bin/activate
-source $HOME/zephyr-beagle-cc1352-sdk/zephyr-beagle-cc1352-env/bin/activate
+echo "export ZEPHYR_TOOLCHAIN_VARIANT=zephyr" >> ./zephyr-beagle-cc1352-env/bin/activate
+echo "export ZEPHYR_SDK_INSTALL_DIR=$(pwd)/zephyr-sdk-0.15.1" >> ./zephyr-beagle-cc1352-env/bin/activate
+echo "export ZEPHYR_BASE=$(pwd)/zephyr-beagle-cc1352-sdk/zephyr" >> ./zephyr-beagle-cc1352-env/bin/activate
+echo 'export PATH=$ZEPHYR_BASE/scripts:$PATH' >> ./zephyr-beagle-cc1352-env/bin/activate
+source zephyr-beagle-cc1352-env/bin/activate
+pip3 install west
+west init -l .
 west update
 west zephyr-export
-pip3 install -r zephyr/scripts/requirements-base.txt
+pip3 install -r scripts/requirements-base.txt
