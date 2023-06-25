@@ -38,37 +38,16 @@ manifest:
       path: modules/hal/cmsis
       groups:
         - hal
-    - name: edtt
-      revision: 000fb87261beaf33f80a8868e73857bd62edc668
-      path: tools/edtt
-      groups:
-        - tools
-    - name: fatfs
-      revision: 89f53db0207cdcea5bd9bdd64acc3e1ed9a65b15
-      path: modules/fs/fatfs
-      groups:
-        - fs
     - name: hal_ti
       revision: ae1db23f32dde779cdfc4afaa9a60ea219310a64
       path: modules/hal/ti
       groups:
         - hal
-    - name: libmetal
-      revision: b91611a6f47dd29fb24c46e5621e797557f80ec6
-      path: modules/hal/libmetal
-      groups:
-        - hal
-    - name: liblc3
-      revision: 448f3de31f49a838988a162ef1e23a89ddf2d2ed
-      path: modules/lib/liblc3
     - name: littlefs
       path: modules/fs/littlefs
       groups:
         - fs
       revision: ca583fd297ceb48bced3c2548600dc615d67af24
-    - name: lvgl
-      revision: 7102083f626cda09e5792420ea60af0525cce9ae
-      path: modules/lib/gui/lvgl
     - name: lz4
       revision: 8e303c264fc21c2116dc612658003a22e933124d
       path: modules/lib/lz4
@@ -85,37 +64,14 @@ manifest:
       path: tools/net-tools
       groups:
         - tools
-    - name: open-amp
-      revision: c904a01d4a882bcbb39987e0e2ce5308f49ac7ad
-      path: modules/lib/open-amp
-    - name: openthread
-      revision: d9abe3071c0131a4adb5d7e7451319b735e6d855
-      path: modules/lib/openthread
     - name: picolibc
       path: modules/lib/picolibc
       revision: d07c38ff051386f8e09a143ea0a6c1d6d66dd1d8
-    - name: segger
-      revision: 4bfaf28a11c3e5ec29badac744fab6d2f342749e
-      path: modules/debug/segger
-      groups:
-        - debug
-    - name: sof
-      revision: ffbf9c2a6ea2930b0ac7e3a37c7cd7f5c417d090
-      path: modules/audio/sof
-    - name: tflite-micro
-      revision: 9156d050927012da87079064db59d07f03b8baf6
-      path: modules/lib/tflite-micro
-      repo-path: tflite-micro
     - name: tinycrypt
       revision: 3e9a49d2672ec01435ffbf0d788db6d95ef28de0
       path: modules/crypto/tinycrypt
       groups:
         - crypto
-    - name: TraceRecorderSource
-      revision: bc839bf94904bcdb91b33760e918afbef82e3ab4
-      path: modules/debug/TraceRecorder
-      groups:
-        - debug
     - name: trusted-firmware-m
       revision: 13abde213930ffdf600cf8f01113da8a5fdd9d9c
       path: modules/tee/tf-m/trusted-firmware-m
