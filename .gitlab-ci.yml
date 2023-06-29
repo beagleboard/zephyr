@@ -16,6 +16,7 @@ build:
     - cp boards/arm/beagle_play_cc1352/cc2538-bsl.py build/play/
     - ./ci-build-and-copy.sh freedom blinky beagleconnect_freedom samples/basic/blinky
     - ./ci-build-and-copy.sh freedom blinky_arduino beagleconnect_freedom ../modules/lib/Arduino-Zephyr-API/samples/blinky_arduino
+    - ./ci-build-and-copy.sh freedom hello_arduino beagleconnect_freedom ../modules/lib/Arduino-Zephyr-API/samples/hello_arduino
     - ./ci-build-and-copy.sh freedom mcuboot beagleconnect_freedom ../bootloader/mcuboot/boot/zephyr
     - ./ci-build-and-copy.sh freedom mcumgr beagleconnect_freedom samples/subsys/mgmt/mcumgr/smp_svr mcuboot
     - ./ci-build-and-copy.sh freedom sensortest beagleconnect_freedom samples/boards/beagleconnect_freedom/sensortest mcuboot
