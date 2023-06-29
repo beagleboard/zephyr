@@ -95,8 +95,8 @@ manifest:
       revision: c40256d06fa60d6b0740a5541bc40094bbb2e053
     - name: arduino-core
       remote: beagleconnect
-      path: modules/arduino-core
-      revision: 0bae8e1b65e6917e8777017819420eca1e76b22b
+      path: modules/lib/Arduino-Zephyr-API
+      revision: 62c0ed927af7de74523f98e7b96489275cc77330
 
   self:
     path: zephyr
