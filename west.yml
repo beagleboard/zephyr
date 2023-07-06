@@ -23,6 +23,8 @@ manifest:
       url-base: https://github.com/zephyrproject-rtos
     - name: vaishnavachath
       url-base: https://github.com/vaishnavachath
+    - name: jkridner
+      url-base: https://git.beagleboard.org/jkridner
     - name: beagleconnect
       url-base: https://git.beagleboard.org/beagleconnect/zephyr
     - name: beagleplay
@@ -97,6 +99,10 @@ manifest:
       remote: beagleconnect
       path: modules/lib/Arduino-Zephyr-API
       revision: 62c0ed927af7de74523f98e7b96489275cc77330
+    - name: ClosedCube_OPT3001_Arduino
+      remote: jkridner
+      path: modules/lib/ClosedCube_OPT3001_Arduino
+      revision: 96eaad9443fc833c08b1b61bb8b54b7acded6e06
 
   self:
     path: zephyr
