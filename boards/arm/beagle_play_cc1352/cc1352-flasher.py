@@ -42,6 +42,7 @@ from subprocess import Popen, PIPE
 import sys
 import getopt
 import glob
+import math
 import time
 import os
 import struct
@@ -61,8 +62,18 @@ try:
 except ImportError:
     have_hex_support = False
 
+try:
+    import gpiod
+    # >>> dir(gpiod)
+    # ['__builtins__', '__cached__', '__doc__', '__file__', '__loader__', '__name__', '__package__', '__path__', '__spec__', 'chip', 'chip_iter', 'find_line', 'kernel', 'libgpiod', 'libgpiodcxx', 'line', 'line_bulk', 'line_event', 'line_iter', 'line_request', 'make_chip_iter']
+    # >>> dir(gpiod.line_request)
+    # ['DIRECTION_AS_IS', 'DIRECTION_INPUT', 'DIRECTION_OUTPUT', 'EVENT_BOTH_EDGES', 'EVENT_FALLING_EDGE', 'EVENT_RISING_EDGE', 'FLAG_ACTIVE_LOW', 'FLAG_BIAS_DISABLE', 'FLAG_BIAS_PULL_DOWN', 'FLAG_BIAS_PULL_UP', 'FLAG_OPEN_DRAIN', 'FLAG_OPEN_SOURCE', '__class__', '__delattr__', '__dict__', '__dir__', '__doc__', '__eq__', '__format__', '__ge__', '__getattribute__', '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__', '__lt__', '__module__', '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__', '__subclasshook__', '__weakref__']
+    have_gpiod = True
+except ImportError:
+    have_gpiod = False
+
 # version
-__version__ = "2.1"
+__version__ = "3.0a1"
 
 # Verbose level
 QUIET = 5
@@ -216,10 +227,10 @@ class CommandInterface(object):
 
         self.sp.open()
 
-    def invoke_bootloader(self, dtr_active_high=False, inverted=False, send_break=False):
+    def invoke_bootloader(self, dtr_active_high=False, inverted=False, sonoff_usb=False, send_break=False, gpio=False):
         if send_break:
             # Use send_break on BeagleConnect Freedom to trigger BSL
-            print("Sending break")
+            mdebug(5, "Sending break")
             to = self.sp.timeout
             self.sp.timeout = .1
             self.sp.send_break()
@@ -242,15 +253,72 @@ class CommandInterface(object):
             set_bootloader_pin = self.sp.setDTR
             set_reset_pin = self.sp.setRTS
 
-        set_bootloader_pin(1 if not dtr_active_high else 0)
-        set_reset_pin(0)
-        set_reset_pin(1)
-        set_reset_pin(0)
-        # Make sure the pin is still asserted when the chip
-        # comes out of reset. This fixes an issue where
-        # there wasn't enough delay here on Mac.
-        time.sleep(0.002)
-        set_bootloader_pin(0 if not dtr_active_high else 1)
+        if sonoff_usb:
+            mdebug(5,'sonoff')
+            # this bootloader toggle is added specifically for the
+            # ITead Sonoff Zigbee 3.0 USB Dongle. This dongle has an odd
+            # connection between RTS DTR and reset and IO15 (imply gate):
+            # DTR  RTS  |  RST  IO15
+            # 1     1   |   1    1
+            # 0     0   |   1    1
+            # 1     0   |   0    1
+            # 0     1   |   1    0
+            set_bootloader_pin(0)
+            set_reset_pin(1)
+
+            set_bootloader_pin(1)
+            set_reset_pin(0)
+        else:
+            set_bootloader_pin(1 if not dtr_active_high else 0)
+            set_reset_pin(0)
+            set_reset_pin(1)
+
+            set_reset_pin(0)
+            # Make sure the pin is still asserted when the chip
+            # comes out of reset. This fixes an issue where
+            # there wasn't enough delay here on Mac.
+            time.sleep(0.002)
+            set_bootloader_pin(0 if not dtr_active_high else 1)
+
+        if gpio:
+            mdebug(5,'gpio')
+            if not have_gpiod:
+                error_str = "Requested to use gpio, but the gpiod library " \
+                            "could not be imported.\n" \
+                            "Install gpiod in site-packages. " \
+                            "Please see the readme for more details."
+                raise CmdException(error_str)
+                return
+            gpio_pins = parse_gpio(gpio)
+            mdebug(5, "Using GPIO for BOOT (%s %d) and RESET (%s %d) lines."
+                   % gpio_pins)
+            boot_chip = gpiod.chip(gpio_pins[0], gpiod.chip.OPEN_BY_NAME)
+            boot_line = boot_chip.get_line(gpio_pins[1])
+            reset_chip = gpiod.chip(gpio_pins[2], gpiod.chip.OPEN_BY_NAME)
+            reset_line = reset_chip.get_line(gpio_pins[3])
+            boot_cfg = gpiod.line_request()
+            boot_cfg.consumer="cc1352-flasher"
+            boot_cfg.request_type=gpiod.line_request.DIRECTION_OUTPUT
+            boot_line.request(boot_cfg)
+            reset_cfg = gpiod.line_request()
+            reset_cfg.consumer="cc1352-flasher"
+            reset_cfg.request_type=gpiod.line_request.DIRECTION_OUTPUT
+            reset_line.request(reset_cfg)
+            mdebug(5,'Setting BOOT and RESET low')
+            boot_line.set_value(0)
+            reset_line.set_value(0)
+            time.sleep(0.2)
+            mdebug(5,'Setting RESET high')
+            reset_line.set_value(1)
+            time.sleep(0.2)
+            mdebug(5,'Setting BOOT high')
+            boot_line.set_value(1)
+            time.sleep(0.2)
+            mdebug(5,'Releasing GPIO lines')
+            boot_line.set_direction_input()
+            reset_line.set_direction_input()
+            boot_line.release()
+            reset_line.release()
 
         # Some boards have a co-processor that detects this sequence here and
         # then drives the main chip's BSL enable and !RESET pins. Depending on
@@ -698,6 +766,15 @@ class Chip(object):
         self.has_cmd_set_xosc = False
         self.page_size = 2048
 
+
+    def page_align_up(self, value):
+        return int(math.ceil(value / self.page_size) * self.page_size)
+
+
+    def page_align_down(self, value):
+        return int(math.floor(value / self.page_size) * self.page_size)
+
+
     def page_to_addr(self, pages):
         addresses = []
         for page in pages:
@@ -829,7 +906,7 @@ class CC26xx(Chip):
         protocols = user_id[1] >> 4
 
         # We can now detect the exact device
-        print("pg_rev = %0x, protocols = %0x, wafer_id = 0x%04x" % (pg_rev, protocols, wafer_id))
+        mdebug(5, "pg_rev = %0x, protocols = %0x, wafer_id = 0x%04x" % (pg_rev, protocols, wafer_id))
 
         if wafer_id == 0xB99A:
             chip = self._identify_cc26xx(pg_rev, protocols)
@@ -847,7 +924,6 @@ class CC26xx(Chip):
             # in table 11-59, so I need an actual device to test it
             chip = self._identify_cc13xx(pg_rev, protocols)
             self.page_size = 8192
-
 
         # Read flash size, calculate and store bootloader disable address
         self.size = self.command_interface.cmdMemReadCC26xx(
@@ -939,6 +1015,13 @@ class CC26xx(Chip):
         # they are stored on the device
         return self.command_interface.cmdMemReadCC26xx(addr)
 
+def parse_gpio(gpio):
+    # Needs more validation
+    mdebug(6,"Parsing GPIO pins \"%s\"" % (gpio))
+    gpio_pins = gpio.split(",")
+    gpio_pins = (gpio_pins[0], int(gpio_pins[1]), gpio_pins[2], int(gpio_pins[3]))
+    mdebug(6,"GPIO pins: %s" % repr(gpio_pins))
+    return gpio_pins
 
 def query_yes_no(question, default="yes"):
     valid = {"yes": True,
@@ -1046,9 +1129,11 @@ def print_version():
 
 
 def usage():
-    print("""Usage: %s [-DhqVfewvr] [-l length] [-p port] [-b baud] [-a addr] \
-    [-i addr] [--bootloader-active-high] [--bootloader-invert-lines] \
-    [--bootloader-send-break] [--append .ext] [file.bin]
+    print("""Usage: %s [-DhqVfewvr] [-l length] [-p port] [-b baud] [-a addr]
+    [-i addr] [--bootloader-active-high] [--bootloader-invert-lines]
+    [--bootloader-sonoff-usb] [--bootloader-send-break]
+    [--bcf] [--gpio bootchip,bootline,resetchip,resetline] [--play]
+    [--append .ext] [file.bin]
     -h, --help                   This help
     -q                           Quiet
     -V                           Verbose
@@ -1059,6 +1144,9 @@ def usage():
                                  eg: -E a,0x00000000,0x00001000,
                                      -E p,1,4
     -w                           Write
+    -W, --erase-write            Write after erasing section to write to (avoids
+                                 a mass erase). Rounds up section to erase if
+                                 not page aligned.
     -v                           Verify (CRC32 check)
     -r                           Read
     -l length                    Length of read
@@ -1069,7 +1157,11 @@ def usage():
     -i, --ieee-address addr      Set the secondary 64 bit IEEE address
     --bootloader-active-high     Use active high signals to enter bootloader
     --bootloader-invert-lines    Inverts the use of RTS and DTR to enter bootloader
+    --bootloader-sonoff-usb      Toggles RTS and DTR in the correct pattern for Sonoff USB dongle
     --bootloader-send-break      Use break signal to enter bootloader
+    --bcf                        Quick defaults for BeagleConnect Freedom Zephyr images
+    --play                       Quick defaults for BeaglePlay Zephyr images
+    --gpio chip,line,chip,line   Use on-board GPIO
     -D, --disable-bootloader     After finishing, disable the bootloader
     --version                    Print script version
 
@@ -1087,32 +1179,39 @@ if __name__ == "__main__":
             'force_speed': 0,
             'address': None,
             'force': 0,
-            'erase': 1,
-            'write': 1,
+            'erase': 0,
+            'write': 0,
+            'erase_write': 0,
             'erase_page': 0,
-            'verify': 1,
+            'verify': 0,
             'read': 0,
             'len': 0x80000,
             'fname': '',
-            'append': '/zephyr/zephyr.bin',
+            'append': '',
             'ieee_address': 0,
             'bootloader_active_high': False,
             'bootloader_invert_lines': False,
-            'bootloader_send_break': True,
+            'bootloader_sonoff_usb':False,
+            'bootloader_send_break': False,
+            'bootloader_gpio': None,
             'disable-bootloader': 0
         }
 
-# http://www.python.org/doc/2.5.2/lib/module-getopt.html
-
     try:
-        opts, args = getopt.gnu_getopt(sys.argv[1:],
-                                   "DhqVfeE:wvrp:b:a:l:i:",
-                                   ['help', 'ieee-address=','erase-page=',
+        opts, args = getopt.getopt(sys.argv[1:],
+                                   "DhqVfeE:wWvrp:b:a:l:i:",
+                                   ['help', 'ieee-address=','erase-write=',
+                                    'erase-page=',
                                     'append=',
+                                    'gpio=',
                                     'disable-bootloader',
                                     'bootloader-active-high',
                                     'bootloader-invert-lines',
-                                    'bootloader-send-break', 'version'])
+                                    'bootloader-sonoff-usb',
+                                    'bootloader-send-break',
+                                    'bcf',
+                                    'play',
+                                    'version'])
     except getopt.GetoptError as err:
         # print help information and exit:
         print(str(err))  # will print something like "option -a not recognized"
@@ -1135,6 +1234,8 @@ if __name__ == "__main__":
             conf['erase'] = 1
         elif o == '-w':
             conf['write'] = 1
+        elif o == '-W' or o == '--erase-write':
+            conf['erase_write'] = 1
         elif o == '-E' or o == '--erase-page':
             conf['erase_page'] = str(a)
         elif o == '-v':
@@ -1156,13 +1257,27 @@ if __name__ == "__main__":
             conf['bootloader_active_high'] = True
         elif o == '--bootloader-invert-lines':
             conf['bootloader_invert_lines'] = True
+        elif o == '--bootloader-sonoff-usb':
+            conf['bootloader_sonoff_usb'] = True
         elif o == '--bootloader-send-break':
-            print("Got send break")
             conf['bootloader_send_break'] = True
         elif o == '-D' or o == '--disable-bootloader':
             conf['disable-bootloader'] = 1
         elif o == '-E' or o == '--erase-page':
             conf['erase_page'] = str(a)
+        elif o == '--bcf':
+            conf['erase'] = 1
+            conf['write'] = 1
+            conf['verify'] = 1
+            conf['append'] = '/zephyr/zephyr.bin'
+            conf['bootloader_send_break'] = True
+        elif o == '--play':
+            conf['erase'] = 1
+            conf['write'] = 1
+            conf['verify'] = 1
+            conf['gpio'] = 'gpiochip1,13,gpiochip1,14'
+            conf['port'] = '/dev/play/cc1352/uart'
+            conf['append'] = '/zephyr/zephyr.bin'
         elif o == '--version':
             print_version()
             sys.exit(0)
@@ -1172,7 +1287,7 @@ if __name__ == "__main__":
     try:
         # Sanity checks
         # check for input/output file
-        if conf['write'] or conf['read'] or conf['verify']:
+        if conf['write'] or conf['erase_write'] or conf['read'] or conf['verify']:
             try:
                 if conf['append']:
                     conf['fname'] = args[0] + conf['append']
@@ -1183,19 +1298,21 @@ if __name__ == "__main__":
             mdebug(5, "Setting filename to %s"
                    % (conf['fname']))
 
-        if conf['write'] and conf['read']:
+        if (conf['write'] and conf['read']) or (conf['erase_write'] and conf['read']):
             if not (conf['force'] or
                     query_yes_no("You are reading and writing to the same "
                                  "file. This will overwrite your input file. "
                                  "Do you want to continue?", "no")):
                 raise Exception('Aborted by user.')
-        if (conf['erase'] and conf['read']) or (conf['erase_page'] and conf['read']) and not conf['write']:
+        if ((conf['erase'] and conf['read']) or (conf['erase_page'] and conf['read'])
+            and not (conf['write'] or conf['erase_write'])):
             if not (conf['force'] or
                     query_yes_no("You are about to erase your target before "
                                  "reading. Do you want to continue?", "no")):
                 raise Exception('Aborted by user.')
 
-        if conf['read'] and not conf['write'] and conf['verify']:
+        if (conf['read'] and not (conf['write']  or conf['erase_write'])
+            and conf['verify']):
             raise Exception('Verify after read not implemented.')
 
         if conf['len'] < 0:
@@ -1226,10 +1343,12 @@ if __name__ == "__main__":
         cmd.open(conf['port'], conf['baud'])
         cmd.invoke_bootloader(dtr_active_high=conf['bootloader_active_high'],
                               inverted=conf['bootloader_invert_lines'],
-                              send_break=conf['bootloader_send_break'])
+                              sonoff_usb=conf['bootloader_sonoff_usb'],
+                              send_break=conf['bootloader_send_break'],
+                              gpio=conf['gpio'])
         mdebug(5, "Opening port %(port)s, baud %(baud)d"
                % {'port': conf['port'], 'baud': conf['baud']})
-        if conf['write'] or conf['verify']:
+        if conf['write'] or conf['erase_write'] or conf['verify']:
             mdebug(5, "Reading data from %s" % conf['fname'])
             firmware = FirmwareFile(conf['fname'])
 
@@ -1292,6 +1411,19 @@ if __name__ == "__main__":
             #       flash size first to get address
             if cmd.writeMemory(conf['address'], firmware.bytes):
                 mdebug(5, "    Write done                                ")
+            else:
+                raise CmdException("Write failed                       ")
+
+        if conf['erase_write']:
+            # TODO: check if boot loader back-door is open, need to read
+            #       flash size first to get address
+            # Round up to ensure page alignment
+            erase_len = device.page_align_up(len(firmware.bytes))
+            erase_len = min(erase_len, device.size)
+            if cmd.cmdEraseMemory(conf['address'], erase_len):
+                mdebug(5, "    Erase before write done                 ")
+            if cmd.writeMemory(conf['address'], firmware.bytes):
+                mdebug(5, "    Write done                              ")
             else:
                 raise CmdException("Write failed                       ")
 
