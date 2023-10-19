@@ -62,6 +62,10 @@ config MCUMGR_TRANSPORT_NETBUF_USER_DATA_SIZE
 	  is sufficient for Bluetooth. For UDP, the userdata must be large
 	  enough to hold a IPv4/IPv6 address.
 
+config MCUMGR_TRANSPORT_SERIAL_UTIL
+	bool "Enable Serial Util"
+	depends on BASE64
+
 module = MCUMGR_TRANSPORT
 module-str = mcumgr_transport
 source "subsys/logging/Kconfig.template.log_config"
