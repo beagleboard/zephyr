@@ -162,6 +162,8 @@ void smp_rx_remove_invalid(struct smp_transport *zst, void *arg);
  */
 void smp_rx_clear(struct smp_transport *zst);
 
+void smp_rx_req(struct smp_transport *smtp, struct net_buf *nb);
+
 /**
  * @}
  */
