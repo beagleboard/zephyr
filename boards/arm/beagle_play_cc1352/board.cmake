@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Copy https://git.beagleboard.org/beagleconnect/cc1352-flasher/-/raw/3.0a0/cc1352-flasher.py here
+# Copy https://git.beagleboard.org/beagleconnect/cc1352-flasher/-/raw/3.0a1/cc1352-flasher.py here
 # Install python gpiod library
 # Be sure to disable the bcfserial driver because it will capture /dev/ttyS4
 

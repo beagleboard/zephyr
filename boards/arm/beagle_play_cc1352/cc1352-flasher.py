@@ -64,12 +64,16 @@ except ImportError:
 
 try:
     import gpiod
+    # >>> dir(gpiod)
+    # ['__builtins__', '__cached__', '__doc__', '__file__', '__loader__', '__name__', '__package__', '__path__', '__spec__', 'chip', 'chip_iter', 'find_line', 'kernel', 'libgpiod', 'libgpiodcxx', 'line', 'line_bulk', 'line_event', 'line_iter', 'line_request', 'make_chip_iter']
+    # >>> dir(gpiod.line_request)
+    # ['DIRECTION_AS_IS', 'DIRECTION_INPUT', 'DIRECTION_OUTPUT', 'EVENT_BOTH_EDGES', 'EVENT_FALLING_EDGE', 'EVENT_RISING_EDGE', 'FLAG_ACTIVE_LOW', 'FLAG_BIAS_DISABLE', 'FLAG_BIAS_PULL_DOWN', 'FLAG_BIAS_PULL_UP', 'FLAG_OPEN_DRAIN', 'FLAG_OPEN_SOURCE', '__class__', '__delattr__', '__dict__', '__dir__', '__doc__', '__eq__', '__format__', '__ge__', '__getattribute__', '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__', '__lt__', '__module__', '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__', '__subclasshook__', '__weakref__']
     have_gpiod = True
 except ImportError:
     have_gpiod = False
 
 # version
-__version__ = "3.0"
+__version__ = "3.0a1"
 
 # Verbose level
 QUIET = 5
@@ -288,12 +292,18 @@ class CommandInterface(object):
             gpio_pins = parse_gpio(gpio)
             mdebug(5, "Using GPIO for BOOT (%s %d) and RESET (%s %d) lines."
                    % gpio_pins)
-            boot_chip = gpiod.Chip(gpio_pins[0], gpiod.Chip.OPEN_BY_NAME)
+            boot_chip = gpiod.chip(gpio_pins[0], gpiod.chip.OPEN_BY_NAME)
             boot_line = boot_chip.get_line(gpio_pins[1])
-            reset_chip = gpiod.Chip(gpio_pins[2], gpiod.Chip.OPEN_BY_NAME)
+            reset_chip = gpiod.chip(gpio_pins[2], gpiod.chip.OPEN_BY_NAME)
             reset_line = reset_chip.get_line(gpio_pins[3])
-            boot_line.request(consumer="cc1352-flasher", type=gpiod.LINE_REQ_DIR_OUT)
-            reset_line.request(consumer="cc1352-flasher", type=gpiod.LINE_REQ_DIR_OUT)
+            boot_cfg = gpiod.line_request()
+            boot_cfg.consumer="cc1352-flasher"
+            boot_cfg.request_type=gpiod.line_request.DIRECTION_OUTPUT
+            boot_line.request(boot_cfg)
+            reset_cfg = gpiod.line_request()
+            reset_cfg.consumer="cc1352-flasher"
+            reset_cfg.request_type=gpiod.line_request.DIRECTION_OUTPUT
+            reset_line.request(reset_cfg)
             mdebug(5,'Setting BOOT and RESET low')
             boot_line.set_value(0)
             reset_line.set_value(0)
@@ -1005,6 +1015,13 @@ class CC26xx(Chip):
         # they are stored on the device
         return self.command_interface.cmdMemReadCC26xx(addr)
 
+def parse_gpio(gpio):
+    # Needs more validation
+    mdebug(6,"Parsing GPIO pins \"%s\"" % (gpio))
+    gpio_pins = gpio.split(",")
+    gpio_pins = (gpio_pins[0], int(gpio_pins[1]), gpio_pins[2], int(gpio_pins[3]))
+    mdebug(6,"GPIO pins: %s" % repr(gpio_pins))
+    return gpio_pins
 
 def query_yes_no(question, default="yes"):
     valid = {"yes": True,
@@ -1258,8 +1275,8 @@ if __name__ == "__main__":
             conf['erase'] = 1
             conf['write'] = 1
             conf['verify'] = 1
-            conf['gpio'] = 'gpiochip2,13,gpiochip2,14'
-            conf['port'] = '/dev/ttyS4'
+            conf['gpio'] = 'gpiochip1,13,gpiochip1,14'
+            conf['port'] = '/dev/play/cc1352/uart'
             conf['append'] = '/zephyr/zephyr.bin'
         elif o == '--version':
             print_version()
@@ -1327,7 +1344,8 @@ if __name__ == "__main__":
         cmd.invoke_bootloader(dtr_active_high=conf['bootloader_active_high'],
                               inverted=conf['bootloader_invert_lines'],
                               sonoff_usb=conf['bootloader_sonoff_usb'],
-                              send_break=conf['bootloader_send_break'])
+                              send_break=conf['bootloader_send_break'],
+                              gpio=conf['gpio'])
         mdebug(5, "Opening port %(port)s, baud %(baud)d"
                % {'port': conf['port'], 'baud': conf['baud']})
         if conf['write'] or conf['erase_write'] or conf['verify']:
