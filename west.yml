@@ -87,7 +87,7 @@ manifest:
     - name: greybus-for-zephyr
       submodules: true
       remote: beagleconnect
-      revision: ff60d4b026907982ebe9809f790b6074da42b2cc
+      revision: 3a135abbd23601132b69cf3193af1517d569706c
       path: modules/greybus
     - name: wpanusb
       remote: beagleplay
