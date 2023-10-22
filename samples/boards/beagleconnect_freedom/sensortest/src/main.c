@@ -253,7 +253,7 @@ void main(void)
 		inet_pton(AF_INET6, "ff02::1", &addr.sin6_addr);
 	}
 
-	setup_telnet_ipv6(iface);
+	//setup_telnet_ipv6(iface);
 
 	for (size_t i = 0; i < NUM_DEVICES; ++i) {
 		LOG_INF("opening device %s", device_labels[i]);
