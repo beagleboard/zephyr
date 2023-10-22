@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Copy https://git.beagleboard.org/beagleconnect/cc1352-flasher/-/raw/3.0a1/cc1352-flasher.py here
+# Copy https://git.beagleboard.org/beagleconnect/cc1352-flasher/-/raw/3.0a2/cc1352-flasher.py here
 # Install python pyserial library
 
 board_set_flasher_ifnset(misc-flasher)

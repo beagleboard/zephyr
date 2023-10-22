@@ -73,7 +73,7 @@ except ImportError:
     have_gpiod = False
 
 # version
-__version__ = "3.0a1"
+__version__ = "3.0a2"
 
 # Verbose level
 QUIET = 5
@@ -1275,7 +1275,7 @@ if __name__ == "__main__":
             conf['erase'] = 1
             conf['write'] = 1
             conf['verify'] = 1
-            conf['gpio'] = 'gpiochip1,13,gpiochip1,14'
+            conf['bootloader_gpio'] = 'gpiochip1,13,gpiochip1,14'
             conf['port'] = '/dev/play/cc1352/uart'
             conf['append'] = '/zephyr/zephyr.bin'
         elif o == '--version':
@@ -1345,7 +1345,7 @@ if __name__ == "__main__":
                               inverted=conf['bootloader_invert_lines'],
                               sonoff_usb=conf['bootloader_sonoff_usb'],
                               send_break=conf['bootloader_send_break'],
-                              gpio=conf['gpio'])
+                              gpio=conf['bootloader_gpio'])
         mdebug(5, "Opening port %(port)s, baud %(baud)d"
                % {'port': conf['port'], 'baud': conf['baud']})
         if conf['write'] or conf['erase_write'] or conf['verify']:
