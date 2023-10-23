@@ -45,7 +45,7 @@ manifest:
       groups:
         - fs
     - name: hal_ti
-      revision: cd40806ee15f4f8f73e1561d3c0e9d99444ea8f0
+      revision: b6ca1ace9024afa072c0ff8294d04b8d9fe4aede
       remote: vaishnavachath
       path: modules/hal/ti
       groups:
