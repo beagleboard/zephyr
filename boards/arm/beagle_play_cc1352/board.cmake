@@ -8,4 +8,4 @@
 # Be sure to disable the bcfserial driver because it will capture /dev/ttyS4
 
 board_set_flasher_ifnset(misc-flasher)
-board_finalize_runner_args(misc-flasher "$ENV{ZEPHYR_BASE}/boards/arm/beagle_play_cc1352/cc1352-flasher.py --play")
+board_finalize_runner_args(misc-flasher $ENV{ZEPHYR_BASE}/boards/arm/beagle_play_cc1352/cc1352-flasher.py --play)
