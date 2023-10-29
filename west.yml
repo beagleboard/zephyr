@@ -88,10 +88,10 @@ manifest:
       remote: beagleconnect
       revision: 5e30fa667b0604655a40855a4070aab2a70a450f
       path: modules/greybus
-    - name: wpanusb
-      remote: beagleplay
+    - name: wpanusb_bc
+      remote: beagleconnect
       path: modules/wpanusb
-      revision: e85d480a636b88d177aa2130f9df05e666c817c0
+      revision: cbd9f5c4cca2aa7979295663cb8c42dfbb3ac7e0
     - name: micropython
       remote: beagleconnect
       path: modules/micropython
