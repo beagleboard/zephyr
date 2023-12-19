@@ -6,7 +6,7 @@
 
 config BOARD_BEAGLECONNECT_FREEDOM
 	bool "BeagleConnect Freedom"
-	depends on SOC_CC1352P7
+	depends on SOC_CC1352P7 || SOC_CC1352P
 
 if BOARD_BEAGLECONNECT_FREEDOM
 

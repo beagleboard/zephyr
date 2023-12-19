@@ -22,7 +22,10 @@
 #define SET_CCFG_BL_CONFIG_BL_ENABLE 0x00
 #endif /* CONFIG_CC13X2_CC26X2_BOOTLOADER_BACKDOOR_ENABLE */
 
-#if defined(CONFIG_SOC_CC1352P) || defined(CONFIG_SOC_CC2652P)
+#ifdef CONFIG_CC13X2_CC26X2_XOSC_CAPARRAY_DELTA
+#define SET_CCFG_MODE_CONF_XOSC_CAP_MOD		0x0
+#define SET_CCFG_MODE_CONF_XOSC_CAPARRAY_DELTA CONFIG_CC13X2_CC26X2_XOSC_CAPARRAY_DELTA
+#elif defined(CONFIG_SOC_CC1352P) || defined(CONFIG_SOC_CC2652P)
 /* Workaround required to be able to establish links between P and R devices,
  * see SimpleLink(TM) cc13xx_cc26xx SDK 6.20+ Release Notes, Known Issues:
  * https://software-dl.ti.com/simplelink/esd/simplelink_cc13xx_cc26xx_sdk/6.20.00.29/exports/release_notes_simplelink_cc13xx_cc26xx_sdk_6_20_00_29.html#known-issues
