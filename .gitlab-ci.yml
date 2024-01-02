@@ -1,4 +1,4 @@
-image: zephyrprojectrtos/zephyr-build:v0.24.7
+image: zephyrprojectrtos/zephyr-build:v0.26.6
 
 build:
   stage: build
