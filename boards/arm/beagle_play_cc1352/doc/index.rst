@@ -10,7 +10,6 @@ BeagleBoard.org BeaglePlay is an open hardware single board computer based on a 
 quad-core ARM Cortex-A53 SoC with an external TI SimpleLink multi-standard CC1352P7 wireless MCU
 providing long-range, low-power connectivity.
 
-
 .. figure:: img/beagleplay.png
    :width: 400px
    :align: center
@@ -47,6 +46,8 @@ Hardware
   * mikroBUS
   * Grove
   * QWIIC
+  * OLDI
+  * CSI
 
 BeaglePlay ARM Cortex-A53 CPUs typically run Linux, while the CC1352P7 Cortex-M4 typically runs Zephyr.
 
