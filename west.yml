@@ -29,6 +29,8 @@ manifest:
       url-base: https://git.beagleboard.org/beagleconnect/zephyr
     - name: beagleplay
       url-base: https://git.beagleboard.org/beagleplay/cc1352
+    - name: gsoc-greybus
+      url-base: https://git.beagleboard.org/gsoc/greybus
 
   group-filter: [-babblesim]
 
@@ -103,6 +105,10 @@ manifest:
       remote: jkridner
       path: modules/lib/ClosedCube_OPT3001_Arduino
       revision: 96eaad9443fc833c08b1b61bb8b54b7acded6e06
+    - name: cc1352-firmware
+      remote: gsoc-greybus
+      path: modules/greybus-host
+      revision: 0113ba37f33b2eea16e676337946accf36791717
 
   self:
     path: zephyr

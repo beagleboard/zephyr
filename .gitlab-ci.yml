@@ -13,6 +13,7 @@ build:
     - ./ci-build-and-copy.sh play blinky beagleplay_cc1352 samples/basic/blinky
     - ./ci-build-and-copy.sh play wpanusb beagleplay_cc1352 ../modules/wpanusb
     - ./ci-build-and-copy.sh play micropython beagleplay_cc1352 ../modules/micropython/ports/zephyr
+    - ./ci-build-and-copy.sh play greybus beagleplay_cc1352 ../modules/greybus-host
     - cp boards/arm/beagle_play_cc1352/cc2538-bsl.py build/play/
     - ./ci-build-and-copy.sh freedom blinky beagleconnect_freedom samples/basic/blinky
     - ./ci-build-and-copy.sh freedom blinky_arduino beagleconnect_freedom ../modules/lib/Arduino-Zephyr-API/samples/blinky_arduino
