@@ -14,7 +14,6 @@ build:
     - ./ci-build-and-copy.sh play wpanusb beagleplay_cc1352 ../modules/wpanusb
     - ./ci-build-and-copy.sh play micropython beagleplay_cc1352 ../modules/micropython/ports/zephyr
     - ./ci-build-and-copy.sh play greybus_host beagleplay_cc1352 ../modules/greybus-host
-    - cp boards/arm/beagle_play_cc1352/cc2538-bsl.py build/play/
     - ./ci-build-and-copy.sh freedom blinky beagleconnect_freedom samples/basic/blinky
     - ./ci-build-and-copy.sh freedom blinky_arduino beagleconnect_freedom ../modules/lib/Arduino-Zephyr-API/samples/blinky_arduino
     - ./ci-build-and-copy.sh freedom hello_arduino beagleconnect_freedom ../modules/lib/Arduino-Zephyr-API/samples/hello_arduino
@@ -30,7 +29,6 @@ build:
     - ./ci-build-and-copy.sh freedom-c5 sensortest beagleconnect_freedom@c5 samples/boards/beagleconnect_freedom/sensortest mcuboot
     - ./ci-build-and-copy.sh freedom-c5 wpanusb beagleconnect_freedom@c5 ../modules/wpanusb mcuboot
     - ./ci-build-and-copy.sh freedom-c5 bcfserial beagleconnect_freedom@c5 "../modules/wpanusb -- -DOVERLAY_CONFIG=overlay-bcfserial.conf -DDTC_OVERLAY_FILE=bcfserial.overlay" mcuboot
-    - cp boards/arm/beagle_bcf/cc2538-bsl.py build/freedom/
   artifacts:
     paths:
       - build
