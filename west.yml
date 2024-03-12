@@ -108,7 +108,7 @@ manifest:
     - name: cc1352-firmware
       remote: gsoc-greybus
       path: modules/greybus-host
-      revision: 0113ba37f33b2eea16e676337946accf36791717
+      revision: c10409a2087911fcc3ccda61dfa145fcdf579546
 
   self:
     path: zephyr
