@@ -3,3 +3,5 @@ board:
   vendor: beagle
   socs:
   - name: cc1352p7
+  revision:
+    format: custom
