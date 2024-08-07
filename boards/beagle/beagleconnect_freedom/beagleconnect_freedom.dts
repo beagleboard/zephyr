@@ -99,16 +99,16 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 
-		/* Allocate 128 KiB for mcuboot */
+		/* Allocate 36 KiB for mcuboot */
 		boot_partition: partition@0 {
 			label = "mcuboot";
-			reg = <0x00000000 0x00020000>;
+			reg = <0x00000000 0x00009000>;
 		};
 
-		/* Allocate 568 KiB for application (avoid touching CCFG) */
-		slot0_partition: partition@20000 {
+		/* Allocate 668 KiB for application (avoid touching CCFG) */
+		slot0_partition: partition@9000 {
 			label = "image-0";
-			reg = <0x00020000 0x0008e000>;
+			reg = <0x00009000 0x000a6fa8>;
 		};
 	};
 };
