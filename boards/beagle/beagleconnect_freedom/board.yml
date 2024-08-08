@@ -1,9 +1,5 @@
-boards:
+board:
 - name: beagleconnect_freedom
   vendor: beagle
   socs:
   - name: cc1352p7
-- name: beagleconnect_freedom_c5
-  vendor: beagle
-  socs:
-  - name: cc1352p
