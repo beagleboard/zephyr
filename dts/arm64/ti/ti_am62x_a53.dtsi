@@ -9,6 +9,7 @@
 #include <arm64/armv8-a.dtsi>
 #include <zephyr/dt-bindings/interrupt-controller/arm-gic.h>
 #include <zephyr/dt-bindings/pinctrl/ti-k3-pinctrl.h>
+#include <zephyr/dt-bindings/gpio/gpio.h>
 
 / {
 	#address-cells = <1>;
@@ -141,5 +142,14 @@
 		interrupt-parent = <&gic>;
 		usr-id = <0>;
 		#mbox-cells = <1>;
+	};
+
+	gpio0: gpio@600010 {
+		compatible = "ti,davinci-gpio";
+		reg = <0x00600010 0x100>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		ngpios = <24>;
+		status = "disabled";
 	};
 };

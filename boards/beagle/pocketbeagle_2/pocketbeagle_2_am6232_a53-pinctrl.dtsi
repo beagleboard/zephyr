@@ -14,4 +14,16 @@
 	main_uart6_tx_default: main_uart6_tx_default {
 		pinmux = <K3_PINMUX(0x0020, PIN_OUTPUT, MUX_MODE_3)>;
 	};
+
+	led_1_default: led_1_default {
+		pinmux = <K3_PINMUX(0x0018, PIN_OUTPUT, MUX_MODE_7)>;
+	};
+
+	led_4_default: led_4_default {
+		pinmux = <K3_PINMUX(0x000c, PIN_OUTPUT, MUX_MODE_7)>;
+	};
+
+	P1_04_D20_gpio: P1-04-D20-gpio-pins {
+		pinmux = <K3_PINMUX(0x01A8, PIN_OUTPUT, MUX_MODE_7)>;
+	};
 };

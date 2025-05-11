@@ -13,6 +13,10 @@
 	model = "BeagleBoard.org PocketBeagle 2";
 	compatible = "beagle,pocketbeagle_2_a53";
 
+	aliases {
+		led0 = &led4;
+	};
+
 	chosen {
 		zephyr,console = &uart6;
 		zephyr,shell-uart = &uart6;
@@ -32,10 +36,25 @@
 	ddr0: memory@80000000 {
 		reg = <0x80000000 DT_SIZE_M(512)>;
 	};
+
+	leds: leds {
+		compatible = "gpio-leds";
+
+		led4: led_4 {
+			gpios = <&gpio0 3 GPIO_ACTIVE_HIGH>;
+			label = "LED 3";
+		};
+	};
 };
 
 &uart6 {
 	pinctrl-0 = <&main_uart6_rx_default &main_uart6_tx_default>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&gpio0 {
+	pinctrl-0 = <&led_4_default>;
 	pinctrl-names = "default";
 	status = "okay";
 };
