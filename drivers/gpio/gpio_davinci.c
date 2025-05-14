@@ -26,8 +26,6 @@ LOG_MODULE_REGISTER(gpio_davinci, CONFIG_GPIO_LOG_LEVEL);
 #define DEV_CFG(dev) \
 		((const struct gpio_davinci_config *)((dev)->config))
 #define DEV_DATA(dev) ((struct gpio_davinci_data *)(dev)->data)
-#define DEV_GPIO_CFG_BASE(dev) \
-	((struct gpio_davinci_regs *)DEVICE_MMIO_GET(dev))
 
 #define GPIO_DAVINCI_DIR_RESET_VAL	(0xFFFFFFFF)
 
@@ -61,10 +59,20 @@ struct gpio_davinci_config {
 	const struct pinctrl_dev_config *pcfg;
 };
 
+const unsigned int offset_array[5] = {0x10, 0x38, 0x60, 0x88, 0xb0};
+#define MAX_REGS_BANK ARRAY_SIZE(offset_array)
+
+static struct gpio_davinci_regs *gpio_davinci_get_regs(const struct device *dev, uint8_t bank) {
+	if (bank < MAX_REGS_BANK)
+		return (struct gpio_davinci_regs *)((uint8_t *)DEVICE_MMIO_GET(dev) + offset_array[bank]);
+	else
+		return NULL;
+}
+
 static int gpio_davinci_configure(const struct device *dev, gpio_pin_t pin,
 					gpio_flags_t flags)
 {
-	volatile struct gpio_davinci_regs *regs = DEV_GPIO_CFG_BASE(dev);
+	volatile struct gpio_davinci_regs *regs = gpio_davinci_get_regs(dev, 0);
 
 	if ((flags & GPIO_SINGLE_ENDED) != 0) {
 		return -ENOTSUP;
@@ -91,7 +99,7 @@ static int gpio_davinci_configure(const struct device *dev, gpio_pin_t pin,
 static int gpio_davinci_port_get_raw(const struct device *dev,
 					gpio_port_value_t *value)
 {
-	volatile struct gpio_davinci_regs *regs = DEV_GPIO_CFG_BASE(dev);
+	volatile struct gpio_davinci_regs *regs = gpio_davinci_get_regs(dev, 0);
 
 	*value = regs->in_data;
 
@@ -101,7 +109,7 @@ static int gpio_davinci_port_get_raw(const struct device *dev,
 static int gpio_davinci_port_set_masked_raw(const struct device *dev,
 		gpio_port_pins_t mask, gpio_port_value_t value)
 {
-	volatile struct gpio_davinci_regs *regs = DEV_GPIO_CFG_BASE(dev);
+	volatile struct gpio_davinci_regs *regs = gpio_davinci_get_regs(dev, 0);
 
 	regs->out_data = (regs->out_data & (~mask)) | (mask & value);
 
@@ -111,7 +119,7 @@ static int gpio_davinci_port_set_masked_raw(const struct device *dev,
 static int gpio_davinci_port_set_bits_raw(const struct device *dev,
 						gpio_port_pins_t mask)
 {
-	volatile struct gpio_davinci_regs *regs = DEV_GPIO_CFG_BASE(dev);
+	volatile struct gpio_davinci_regs *regs = gpio_davinci_get_regs(dev, 0);
 
 	regs->set_data |= mask;
 
@@ -121,7 +129,7 @@ static int gpio_davinci_port_set_bits_raw(const struct device *dev,
 static int gpio_davinci_port_clear_bits_raw(const struct device *dev,
 						gpio_port_pins_t mask)
 {
-	volatile struct gpio_davinci_regs *regs = DEV_GPIO_CFG_BASE(dev);
+	volatile struct gpio_davinci_regs *regs = gpio_davinci_get_regs(dev, 0);
 
 	regs->clr_data |= mask;
 
@@ -131,7 +139,7 @@ static int gpio_davinci_port_clear_bits_raw(const struct device *dev,
 static int gpio_davinci_port_toggle_bits(const struct device *dev,
 						gpio_port_pins_t mask)
 {
-	volatile struct gpio_davinci_regs *regs = DEV_GPIO_CFG_BASE(dev);
+	volatile struct gpio_davinci_regs *regs = gpio_davinci_get_regs(dev, 0);
 
 	regs->out_data ^= mask;
 
@@ -167,7 +175,7 @@ static int gpio_davinci_init(const struct device *dev)
 #define GPIO_DAVINCI_INIT_FUNC(n)						  \
 	static void gpio_davinci_bank_##n##_config(const struct device *dev)	  \
 	{									  \
-		volatile struct gpio_davinci_regs *regs = DEV_GPIO_CFG_BASE(dev); \
+		volatile struct gpio_davinci_regs *regs = gpio_davinci_get_regs(dev, 0); \
 		regs->dir = GPIO_DAVINCI_DIR_RESET_VAL;                           \
 	}
 
